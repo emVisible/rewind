@@ -279,6 +279,11 @@ fi
 INSIDE=$(find . -maxdepth 2 -type d -iname '*alh*' -not -path './.git*' || true)
 [ -z "$INSIDE" ] && ok "参考源码目录已移出仓库" || bad "参考源码目录仍在仓库内" "$INSIDE"
 SECRETS=$(lsf | grep -i -E '\.env$|id_rsa|\.pem$|credentials' || true)
+# 索引里的权限位决定新克隆能不能直接跑。CI 上真实踩过:本地工作树有 +x,索引里却是 644,
+# 新检出后任何"直接执行"(不是 bash x.sh)都是 exit 126。
+NOEXEC=$(git -c core.quotePath=false ls-files -s | awk '$1 != "100755" {print $4}' \
+  | grep -E '(^|/)scripts/.+\.(sh|py|js)$|^[^/]+\.sh$' | tr '\n' ' ')
+[ -z "$NOEXEC" ] && ok "脚本在索引里都带可执行位(新克隆可直接跑)" || bad "脚本在索引里都带可执行位" "缺 +x:$NOEXEC"
 [ -z "$SECRETS" ] && ok "无可疑凭据文件" || bad "无可疑凭据文件" "$SECRETS"
 for l in core/Cargo.lock shell/Cargo.lock; do
   [ -s "$l" ] || bad "锁文件 $l" "缺失(CI 复现构建需要)"
