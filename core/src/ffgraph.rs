@@ -285,7 +285,15 @@ fn color_chain(saturation: Option<f64>, contrast: Option<f64>, brightness: Optio
     out
 }
 
+/// 字体路径进滤镜图必须转义:滤镜串里 `:` 分隔选项、`\` 是转义符,而 Windows 路径两样都占
+/// (`C:\\Windows\\Fonts\\arial.ttf` 原样插进去,ffmpeg 会把冒号当选项结束、把反斜杠吃掉)。
+/// 统一先换成斜杠再转义冒号 —— Linux/macOS 路径没有冒号,转完与原来一字不差。
+fn esc_font(p: &str) -> String {
+    p.replace('\\', "/").replace(':', "\\:")
+}
+
 fn timestamp_chains(format: &str, rec_badge: bool, font: &str) -> Vec<String> {
+    let font = esc_font(font);
     let fmt_esc = format.replace(':', "\\:");
     let mut out = vec![format!(
         "drawtext=fontfile={font}:text='%{{localtime\\:{fmt_esc}}}':x=16:y=14:fontsize=26:fontcolor=white:box=1:boxcolor=black@0.35"
@@ -1569,6 +1577,34 @@ mod tests {
                 let n: u32 = v.trim_start_matches("unsharp=").split(':').next().unwrap().parse().unwrap();
                 assert!(n % 2 == 1 && (3..=13).contains(&n), "滤镜里的核尺寸必须是 3–13 的奇数: {v}");
             }
+        }
+    }
+
+    /// 字体路径必须按滤镜语法转义:串里 `:` 分隔选项、`\` 是转义符,Windows 路径两样都占。
+    /// 未转义时整条 drawtext 是坏的 —— 带时间戳的预设(监控/RMVB)在那一端直接跑失败。
+    #[test]
+    fn font_path_is_escaped_for_the_filter_graph() {
+        // Windows 形状:反斜杠变斜杠,盘符冒号被转义
+        assert_eq!(
+            esc_font(r"C:\Windows\Fonts\arial.ttf"),
+            "C\\:/Windows/Fonts/arial.ttf"
+        );
+        // Unix 形状:一字不动(没有冒号也没有反斜杠)
+        assert_eq!(
+            esc_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+        );
+        // 真走一遍带 overlay_timestamp 的预设,看落到滤镜串里的样子
+        let p = load("cctv2000");
+        let plan = build_plan(&p, &hd(), None, Some(r"C:\Windows\Fonts\arial.ttf")).unwrap();
+        let dt: Vec<String> = fasts(&plan)
+            .iter()
+            .flat_map(|x| x.fx_v.clone())
+            .filter(|v| v.starts_with("drawtext="))
+            .collect();
+        assert!(!dt.is_empty(), "cctv2000 该有 drawtext");
+        for v in &dt {
+            assert!(v.contains("fontfile=C\\:/Windows/Fonts/arial.ttf:"), "字体没转义: {v}");
         }
     }
 

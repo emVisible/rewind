@@ -109,8 +109,8 @@ docs/     设计记录与里程碑台账(中文)。
 ## 测试
 
 ```bash
-cd core  && cargo test     # 77 项
-cd shell && cargo test     # 12 项
+cd core  && cargo test     # 78 项
+cd shell && cargo test     # 14 项
 ```
 
 闸套件全部接进 CI(Linux、Windows、macOS),见 `.github/workflows/build.yml`。请逐个跑:它们

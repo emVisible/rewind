@@ -20,6 +20,8 @@ const MEDIA_UNREADABLE: &str = "media.unreadable";
 const ASSET_MISSING: &str = "asset.missing";
 const PRESET_SAVE: &str = "preset.save";
 const RUN_CANCELED: &str = "run.canceled";
+/// 壳层用到的码(只给对账测试遍历用 —— 非测试构建里不编译,免得变成一个"从没人读的表")
+#[cfg(test)]
 const SHELL_CODES: &[&str] = &[
     ENGINE_SPAWN,
     ENGINE_EXIT,
@@ -135,17 +137,14 @@ fn workspace_root() -> Result<PathBuf, String> {
         .to_path_buf())
 }
 
-/// 一次 rewind-core 运行,逐行回调 NDJSON 事件;cancel 标志置位后杀进程树
-pub fn run_core(
-    paths: &EnginePaths,
-    args: &[String],
-    on_event: &mut dyn FnMut(&serde_json::Value),
-    cancel: &AtomicBool,
-) -> Result<Vec<serde_json::Value>, String> {
+/// 拉起引擎的**唯一**入口。约定都在这里面:把 `engines/` 前置进子进程的 PATH,
+/// Windows 上别闪控制台窗口。
+/// 为什么必须是唯一入口 —— 之前只有 `run_core` 记得 `apply_env`,
+/// 而 `probe` / `sample` / `reroll` / `era` / `preset-rename` / `catalog` 各写一份
+/// `Command::new(&paths.core)`,于是**装态机器上(ffmpeg 只在 app/engines/、不在 PATH 上)
+/// 这些通道一律报 "program not found"**。Linux 开发机看不出来,因为系统装了 ffmpeg。
+fn core_cmd(paths: &EnginePaths) -> Command {
     let mut cmd = Command::new(&paths.core);
-    cmd.args(args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
     paths.apply_env(&mut cmd);
     #[cfg(windows)]
     {
@@ -153,6 +152,28 @@ pub fn run_core(
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
+    cmd
+}
+
+/// 一次 rewind-core 运行,逐行回调 NDJSON 事件;cancel 标志置位后杀进程树
+pub fn run_core(
+    paths: &EnginePaths,
+    args: &[String],
+    on_event: &mut dyn FnMut(&serde_json::Value),
+    cancel: &AtomicBool,
+) -> Result<Vec<serde_json::Value>, String> {
+    let mut cmd = core_cmd(paths);
+    // 引擎的 stderr 落到暂存文件,不进管道:管道会在 ffmpeg 抱怨够多时把子进程堵住,
+    // 而父进程还等 stdout 的 EOF —— 两边都不动就是"界面卡在 87%"那种故障。
+    // 失败时再从文件里把引擎自己写的 `[码] 原文` 提出来,不然界面上只剩"退出码 1"这种没用的话。
+    static STDERR_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let seq = STDERR_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let err_file = std::env::temp_dir().join(format!("rewind_core_err_{}_{}.log", std::process::id(), seq));
+    let ferr = std::fs::File::create(&err_file)
+        .map_err(|e| coded(ENGINE_SPAWN, format!("建 stderr 暂存件失败: {e}")))?;
+    cmd.args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::from(ferr));
     let mut child = cmd.spawn().map_err(|e| coded(ENGINE_SPAWN, format!("启动 rewind-core 失败: {e}")))?;
     let stdout = child.stdout.take().unwrap();
     let mut events = vec![];
@@ -172,8 +193,30 @@ pub fn run_core(
     }
     let st = child.wait().map_err(|e| e.to_string())?;
     if !st.success() && !cancel.load(Ordering::Relaxed) {
-        return Err(coded(ENGINE_EXIT, format!("rewind-core 退出码 {:?}", st.code())));
+        // 失败必须带"为什么"。原因按可信度三条路取:
+        // ① 引擎自己发的 NDJSON error 事件(带码,最准);② stderr 里那条带码的行(引擎被杀或
+        // 没来得及走完事件);③ 什么都没有,才敢说"没交代原因"。
+        // 从前这里只输出"退出码 Some(1)"—— 界面上等于没说,三端 CI 上也看不出为什么红。
+        let reason = events
+            .iter()
+            .rev()
+            .find(|e| e["type"] == "error")
+            .and_then(|e| e["error"].as_str())
+            .map(str::to_string)
+            .or_else(|| {
+                std::fs::read_to_string(&err_file).ok().and_then(|raw| {
+                    raw.lines()
+                        .map(str::trim)
+                        .find(|l| l.starts_with("error: [") || l.starts_with('['))
+                        .map(|l| l.trim_start_matches("error: ").to_string())
+                })
+            })
+            .unwrap_or_else(|| coded(ENGINE_EXIT, format!("rewind-core 退出码 {:?},且没有给出任何原因", st.code())));
+        let _ = std::fs::remove_file(&err_file);
+        // 引擎原话自带码就照发;兜底那句由 coded() 贴码 —— 壳层不产没码的失败
+        return Err(if reason.starts_with('[') { reason } else { coded(ENGINE_EXIT, reason) });
     }
+    let _ = std::fs::remove_file(&err_file);
     Ok(events)
 }
 
@@ -186,7 +229,7 @@ pub fn list_presets(paths: &EnginePaths, ui: Option<&Path>) -> Result<Vec<serde_
         args.push("--ui".into());
         args.push(u.to_string_lossy().into_owned());
     }
-    let out = Command::new(&paths.core)
+    let out = core_cmd(paths)
         .args(&args)
         .stderr(Stdio::piped())
         .output()
@@ -202,7 +245,7 @@ pub fn list_presets(paths: &EnginePaths, ui: Option<&Path>) -> Result<Vec<serde_
 /// 年代轴:让 core 生成该年份的联动预设(写入用户预设目录),返回文件路径
 /// 素材完整报告(界面媒体信息条与源自适应取值都靠它)
 pub fn probe_file(paths: &EnginePaths, input: &Path) -> Result<serde_json::Value, String> {
-    let out = Command::new(&paths.core)
+    let out = core_cmd(paths)
         .arg("probe")
         .arg(input)
         .output()
@@ -221,7 +264,7 @@ pub fn probe_file(paths: &EnginePaths, input: &Path) -> Result<serde_json::Value
 /// 还在拿旧的 ffmpeg 测试图,桌面版已经换掉了 —— 同一件事两个答案。
 pub fn sample_file(paths: &EnginePaths) -> Result<PathBuf, String> {
     let dir = std::env::temp_dir().join("rewind_samples");
-    let out = Command::new(&paths.core)
+    let out = core_cmd(paths)
         .args(["sample", "--out-dir"])
         .arg(&dir)
         .arg("--presets")
@@ -242,7 +285,7 @@ pub fn sample_file(paths: &EnginePaths) -> Result<PathBuf, String> {
 
 /// 参数清单:界面按它渲染控件(§13.1)。引擎是唯一事实来源,壳与 Web 版拿同一份。
 pub fn manifest(paths: &EnginePaths) -> Result<serde_json::Value, String> {
-    let out = Command::new(&paths.core)
+    let out = core_cmd(paths)
         .arg("describe")
         .output()
         .map_err(|e| coded(ENGINE_SPAWN, format!("启动引擎失败: {e}")))?;
@@ -261,7 +304,7 @@ pub fn era_preset_file(paths: &EnginePaths, year: u32) -> Result<PathBuf, String
     std::fs::create_dir_all(derived_dir(paths))
         .map_err(|e| coded(PRESET_SAVE, format!("创建派生预设目录失败: {e}")))?;
     let path = derived_dir(paths).join(format!("era_{year}.json"));
-    let out = Command::new(&paths.core)
+    let out = core_cmd(paths)
         .args(["era", &year.to_string(), "--write", &path.to_string_lossy()])
         .stderr(Stdio::piped())
         .output()
@@ -457,7 +500,7 @@ pub fn save_recipe(paths: &EnginePaths, preset: &str, name: &str) -> Result<Stri
         .map_err(|e| format!("创建用户预设目录失败: {e}"))?;
     let dst = paths.user_presets_dir.join(format!("{dst_id}.json"));
     std::fs::copy(&src, &dst).map_err(|e| format!("复制预设失败: {e}"))?;
-    let out = Command::new(&paths.core)
+    let out = core_cmd(paths)
         .args(["preset-rename", &dst.to_string_lossy(), name])
         .stderr(Stdio::piped())
         .output()
@@ -477,7 +520,7 @@ pub fn reroll_preset(paths: &EnginePaths, preset: &str) -> Result<usize, String>
         return Err(format!("预设不存在: {preset}"));
     }
     let dst = derived_dir(paths).join(format!("{preset}.json"));
-    let out = Command::new(&paths.core)
+    let out = core_cmd(paths)
         .args(["reroll", &src.to_string_lossy(), "--write", &dst.to_string_lossy()])
         .stderr(Stdio::piped())
         .output()
@@ -599,7 +642,7 @@ pub fn run_batch(
         if cancel.load(Ordering::Relaxed) {
             if let Ok(evs) = ran.as_ref() {
                 if let Some(tag) = evs.iter().find(|e| e["type"] == "start").and_then(|e| e["tag"].as_str()) {
-                    let _ = Command::new(&paths.core)
+                    let _ = core_cmd(paths)
                         .args(["sweep-temps", "--out-dir", &out_dir.display().to_string(), "--tag", tag])
                         .stdout(Stdio::null())
                         .stderr(Stdio::null())
@@ -790,6 +833,51 @@ mod tests {
             results[1]
         );
         let _ = std::fs::remove_dir_all(&out_dir);
+    }
+
+    /// 拉引擎的站点必须只有一个入口(`core_cmd`)。多出来的一份一定漏了 `apply_env` ——
+    /// 装态机器上 ffmpeg 只在 `app/engines/`,漏一次就是一条 "program not found"。
+    /// Windows CI 上真炸过:`probe_file` 漏了,于是"试试示例素材"那条通道只有 Linux 能跑。
+    #[test]
+    fn every_core_spawn_goes_through_core_cmd() {
+        let src = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/lib.rs")).unwrap();
+        // 拼出来的字面量:写死的话,这一行自己就含那个串,扫源文件时会把自己算成一个站点
+        let needle = ["Command::new(", "&paths.", "core", ")"].concat();
+        let direct = src
+            .lines()
+            .filter(|l| l.contains(&needle) && !l.trim_start().starts_with("///"))
+            .count();
+        assert_eq!(direct, 1, "直接 spawn 引擎的站点应只剩 core_cmd 里那一处,现在 {direct} 处");
+        let via = src.lines().filter(|l| l.contains("core_cmd(paths)")).count();
+        assert!(via >= 8, "走 core_cmd 的通道少于 8 处(现在 {via}):新加的调用忘了走它?");
+    }
+
+    /// 引擎失败的**原因**必须传到调用方。此前这里只报 "rewind-core 退出码 Some(1)",
+    /// 界面上是一条没有信息量的失败,三端 CI 上也看不出为什么红(本次就是被这条坑到的)。
+    #[test]
+    fn engine_failure_surfaces_the_engine_reason() {
+        let paths = EnginePaths::resolve().unwrap();
+        let cancel = AtomicBool::new(false);
+        let no_preset = workspace_root().unwrap().join("presets/__no_such_preset__.json");
+        let e = run_core(
+            &paths,
+            &[
+                "run".into(),
+                "--preset".into(),
+                no_preset.to_string_lossy().into_owned(),
+                "--input".into(),
+                fixture().to_string_lossy().into_owned(),
+                "--out-dir".into(),
+                std::env::temp_dir().join("rewind_reason_test").to_string_lossy().into_owned(),
+            ],
+            &mut |_v| {},
+            &cancel,
+        )
+        .expect_err("不存在的预设该失败");
+        assert!(
+            e.starts_with("[preset.load]"),
+            "该透传引擎自己写的码与原因,实际拿到:{e}"
+        );
     }
 
     #[test]

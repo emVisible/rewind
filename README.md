@@ -120,8 +120,8 @@ docs/     Design record and milestone ledger (Chinese).
 ## Tests
 
 ```bash
-cd core  && cargo test     # 77
-cd shell && cargo test     # 12
+cd core  && cargo test     # 78
+cd shell && cargo test     # 14
 ```
 
 Gate suite, all wired into CI (Linux, Windows, macOS) via `.github/workflows/build.yml`. Run

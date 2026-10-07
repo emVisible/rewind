@@ -5,7 +5,16 @@
 # 用法: bash scripts/ci_step.sh <命令...>
 set -uo pipefail
 log=$(mktemp)
-"$@" >"$log" 2>&1
+# 自己认解释器:调用方写 `ci_step.sh scripts/regression.sh` 就够。
+# 不这么做的话,CI 里就会出现"包一层 bash 之后里面那个 bash 丢了"的形状 ——
+# 直接执行一个 644 的 .sh 得到 exit 126(Permission denied),报的还是包装层的错。
+case "${1:-}" in
+  *.sh) run_cmd=(bash "$@") ;;
+  *.py) run_cmd=(python3 "$@") ;;
+  *.js) run_cmd=(node "$@") ;;
+  *)    run_cmd=("$@") ;;
+esac
+"${run_cmd[@]}" >"$log" 2>&1
 rc=$?
 cat "$log"
 if [ $rc -ne 0 ]; then
