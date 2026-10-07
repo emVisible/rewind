@@ -281,9 +281,19 @@ INSIDE=$(find . -maxdepth 2 -type d -iname '*alh*' -not -path './.git*' || true)
 SECRETS=$(lsf | grep -i -E '\.env$|id_rsa|\.pem$|credentials' || true)
 # 索引里的权限位决定新克隆能不能直接跑。CI 上真实踩过:本地工作树有 +x,索引里却是 644,
 # 新检出后任何"直接执行"(不是 bash x.sh)都是 exit 126。
+# 两边都要查:只查索引抓不到"编辑工具把文件重写回 644"这一步 —— 走 \\wsl.localhost 写回来的
+# 文件模式就是 644,改一次脚本就把刚 chmod 过的位又冲掉了(同一天真发生了两次)。
 NOEXEC=$(git -c core.quotePath=false ls-files -s | awk '$1 != "100755" {print $4}' \
   | grep -E '(^|/)scripts/.+\.(sh|py|js)$|^[^/]+\.sh$' | tr '\n' ' ')
-[ -z "$NOEXEC" ] && ok "脚本在索引里都带可执行位(新克隆可直接跑)" || bad "脚本在索引里都带可执行位" "缺 +x:$NOEXEC"
+WT_NOEXEC=""
+for f in $(git -c core.quotePath=false ls-files | grep -E '(^|/)scripts/.+\.(sh|py|js)$|^[^/]+\.sh$'); do
+  [ -f "$f" ] && [ ! -x "$f" ] && WT_NOEXEC="$WT_NOEXEC $f"
+done
+if [ -z "$NOEXEC" ] && [ -z "$WT_NOEXEC" ]; then
+  ok "脚本在索引与工作树里都带可执行位(新克隆可直接跑)"
+else
+  bad "脚本在索引与工作树里都带可执行位" "索引缺 +x:${NOEXEC};工作树缺 +x:${WT_NOEXEC}(修:chmod +x 后重新入索引)"
+fi
 [ -z "$SECRETS" ] && ok "无可疑凭据文件" || bad "无可疑凭据文件" "$SECRETS"
 for l in core/Cargo.lock shell/Cargo.lock; do
   [ -s "$l" ] || bad "锁文件 $l" "缺失(CI 复现构建需要)"
