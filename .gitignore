@@ -1,0 +1,32 @@
+# 构建产物
+target/
+**/target/
+# 在内联的第三方目录里跑过 cargo 就会生成它 —— 那是本机产物,不是我们要分发的东西
+vendor/**/Cargo.lock
+
+# 本地工作区:定标样片、对比图、各闸的输出与临时产物都在这儿,整目录不入库
+.work/
+
+# 打包暂存(CI 生成,勿提交二进制)
+app/engines/*
+!app/engines/.gitkeep
+app/presets/
+
+# 用户/系统
+.DS_Store
+*.tmp
+Snipaste_*.png
+
+# 台架脚本被 import 时留下的字节码(闸用 python3 跑,产物不该进库)
+__pycache__/
+*.pyc
+
+# 灵感源(专有源码,只读参考,已移出仓库到 ~/reference/)
+# 两条大小写都写:Linux 的 gitignore 大小写敏感,改名绕过 .gitignore 时靠 release_check.sh 兜底
+ALH-Pro-*/
+alh-pro-*/
+ALHPro-*/
+alhpro-*/
+
+# CI 生成的 ffmpeg 暂存目录
+/engines/

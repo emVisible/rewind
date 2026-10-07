@@ -1,0 +1,23 @@
+{
+  "id": "screenbat",
+  "name": "屏摄翻拍",
+  "era": 2011,
+  "schema": 1,
+  "aging": 3,
+  "note": "手机拍电视/拍投影:栅格干涉近似摩尔纹 + 轻微桶形 + 高光反光发白 + 高感噪点。包浆图的实物来源。",
+  "video": [
+    { "stage": "crt_display", "params": { "scanline": 0.22, "barrel": 0.1, "aberration": 0.16, "persistence": 0.0 } },
+    { "stage": "resize", "params": { "w": 1280, "h": 720, "fit": "inside", "flags": "area" } },
+    { "stage": "codec_roundtrip", "params": { "codec": "libx264", "bitrate": "500k", "container": "mp4", "audio_bitrate": "64k" } },
+    { "stage": "asymmetric_lowpass", "params": { "luma_radius": 0.8, "chroma_radius": 2.5 } },
+    { "stage": "band_quantize", "params": { "level": 28 } },
+    { "stage": "color", "params": { "saturation": 0.86, "contrast": 1.12, "brightness": 0.04 } },
+    { "stage": "noise", "params": { "alls": 12, "allf": "t+u" } }
+  ],
+  "audio": [
+    { "stage": "bandlimit", "params": { "highpass": 200, "lowpass": 6500 } },
+    { "stage": "gain", "params": { "volume": 0.9 } },
+    { "stage": "tape_hiss", "params": { "color": "white", "amplitude": 0.008, "mix_weight": 0.25 } }
+  ],
+  "calibrated": "M6-D4 初版。摩尔纹用扫描线+色散近似,真干涉栅格未实现;待目检定标"
+}

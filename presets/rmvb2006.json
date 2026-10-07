@@ -1,0 +1,24 @@
+{
+  "id": "rmvb2006",
+  "name": "字幕组 RMVB",
+  "era": 2006,
+  "schema": 1,
+  "aging": 2,
+  "note": "VeryCD/迅雷时代的低清剧与 MV:4:3 小画幅、极低码率 H.264、暗部死黑、色板断层、字幕条时间戳。",
+  "video": [
+    { "stage": "resize", "params": { "w": 512, "h": 384, "fit": "inside", "flags": "area", "dar": "4:3" } },
+    { "stage": "codec_roundtrip", "params": { "codec": "libx264", "bitrate": "250k", "container": "mp4", "audio_bitrate": "48k" } },
+    { "stage": "chroma_decimate", "params": { "to": "420" } },
+    { "stage": "band_quantize", "params": { "level": 22 } },
+    { "stage": "asymmetric_lowpass", "params": { "luma_radius": 1.0, "chroma_radius": 3.0 } },
+    { "stage": "resize", "params": { "mode": "source_canvas", "flags": "bicubic", "dar": "4:3" } },
+    { "stage": "color", "params": { "saturation": 0.9, "contrast": 1.08, "brightness": -0.01 } },
+    { "stage": "noise", "params": { "alls": 4, "allf": "t+u" } },
+    { "stage": "overlay_timestamp", "params": { "format": "%H:%M:%S", "rec_badge": false } }
+  ],
+  "audio": [
+    { "stage": "bandlimit", "params": { "highpass": 120, "lowpass": 8000 } },
+    { "stage": "bitrate_roundtrip", "params": { "bitrate": "48k" } }
+  ],
+  "calibrated": "M6-D4 初版。硬字幕条尚未实现(只有时间戳占位),待目检定标"
+}

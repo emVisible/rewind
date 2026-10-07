@@ -1,0 +1,74 @@
+{
+  "id": "phone2010",
+  "name": "彩屏手机",
+  "era": 2010,
+  "schema": 1,
+  "video": [
+    {
+      "stage": "chroma_decimate",
+      "params": {
+        "to": "420"
+      }
+    },
+    {
+      "stage": "resize",
+      "impl": "ffmpeg",
+      "params": {
+        "w": 176,
+        "h": 144,
+        "flags": "bicubic"
+      }
+    },
+    {
+      "stage": "codec_roundtrip",
+      "impl": "ffmpeg",
+      "params": {
+        "codec": "h263",
+        "q": 25,
+        "container": "avi",
+        "video_only": true
+      }
+    },
+    {
+      "stage": "resize",
+      "impl": "ffmpeg",
+      "params": {
+        "mode": "source_canvas",
+        "flags": "neighbor"
+      }
+    },
+    {
+      "stage": "noise",
+      "impl": "ffmpeg",
+      "params": {
+        "alls": 6,
+        "allf": "t"
+      }
+    },
+    {
+      "stage": "color",
+      "impl": "ffmpeg",
+      "params": {
+        "saturation": 1.15,
+        "contrast": 1.05
+      }
+    }
+  ],
+  "audio": [
+    {
+      "stage": "resample_roundtrip",
+      "params": {
+        "rate": 8000
+      }
+    },
+    {
+      "stage": "bitcrush",
+      "params": {
+        "bits": 8,
+        "mode": "log",
+        "aa": 0.5
+      }
+    }
+  ],
+  "calibrated": "2026-10-04 M0,双片源目检通过(samples/out_phone2010_*.mp4)。H.263 仅支持固定分辨率(176x144=QCIF)"
+}

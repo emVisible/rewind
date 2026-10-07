@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rewind · 影像做旧引擎</title>
+<meta name="description" content="视频/图片做旧工具:VHS 信号级模拟、翻录代际损失、CRT、老胶片、监控录像。年代轴一拖到位。全本地处理,不上传。">
+<style>
+  :root { --bg:#100e0b; --panel:#1a1712; --line:#2c271f; --text:#ddd6c6; --dim:#8d8471; --amber:#e8b84b; --green:#7ec96f; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--text); font:16px/1.8 "Segoe UI","Microsoft YaHei",system-ui,sans-serif; }
+  .wrap { max-width:980px; margin:0 auto; padding:0 24px; }
+  header.hero { padding:96px 0 72px; text-align:center; background:
+    repeating-linear-gradient(0deg, transparent 0 2px, rgba(0,0,0,.18) 2px 4px), var(--panel); border-bottom:1px solid var(--line); }
+  h1.brand { font-family:"Courier New",monospace; font-size:64px; letter-spacing:12px; color:var(--amber);
+    text-shadow:0 0 24px rgba(232,184,75,.45); }
+  h1 .cursor { animation:blink 1.1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity:0; } }
+  .sub { font-size:22px; margin-top:12px; }
+  .tag { color:var(--dim); margin-top:18px; font-size:15px; }
+  .cta { display:inline-block; margin-top:36px; padding:14px 40px; background:var(--amber); color:#20180a;
+    font-weight:700; border-radius:8px; text-decoration:none; font-size:18px; }
+  .cta.ghost { background:none; border:1px solid var(--line); color:var(--dim); margin-left:12px; font-weight:400; font-size:16px; }
+  section { padding:64px 0; border-bottom:1px solid var(--line); }
+  h2 { color:var(--amber); font-size:26px; margin-bottom:20px; font-family:"Courier New",monospace; letter-spacing:2px; }
+  p.lead { font-size:18px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:28px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:22px; }
+  .card b { color:var(--green); font-family:"Courier New",monospace; }
+  figure { margin:28px 0 8px; }
+  figure img { width:100%; border:1px solid var(--line); border-radius:8px; display:block; }
+  figcaption { color:var(--dim); font-size:13px; margin-top:8px; text-align:center; }
+  .faq dt { color:var(--amber); margin-top:20px; font-weight:700; }
+  .faq dd { color:var(--text); margin:6px 0 0; }
+  footer { padding:40px 0 64px; color:var(--dim); font-size:13px; text-align:center; }
+  .badge { display:inline-block; border:1px solid var(--line); color:var(--dim); border-radius:20px;
+    padding:2px 14px; font-size:13px; margin:24px 4px 0; }
+  @media (max-width:720px){ .grid{grid-template-columns:1fr} h1.brand{font-size:40px;letter-spacing:6px} }
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <h1 class="brand">REWIND<span class="cursor">▌</span></h1>
+    <div class="sub">影像介质退化与年代质感模拟</div>
+    <div class="tag">全网都在把老片变清晰。只有我们在做相反的事——因为你看过的最好的视频,恰恰都是糊的。</div>
+    <div>
+      <a class="cta" href="#download">下载 Rewind</a>
+      <a class="cta ghost" href="#gallery">看效果对比</a>
+    </div>
+    <div>
+      <span class="badge">Windows / Linux / macOS</span>
+      <span class="badge">全部本地处理</span>
+      <span class="badge">不上传 · 无账号</span>
+      <span class="badge">无需显卡</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+<section>
+  <h2>&gt; 为什么反向做?</h2>
+  <p class="lead">2026 年有人把《金坷垃》AI 高清重制,评论区炸了:<b style="color:var(--green)">“画质太好,反而不习惯了。”</b><br><br>
+  低画质不是缺陷,是一种介质记忆——VHS 的梳齿、翻录带的宏块、CCD 的涂抹,是整整一代人“看见”那段内容的方式。
+  增强工具消灭它们,Rewind 帮你找回它们。</p>
+</section>
+
+<section>
+  <h2>&gt; 四个不一样</h2>
+  <div class="grid">
+    <div class="card"><b>01 · 年代轴,不是滤镜列表</b><br>1965→2026 一根时间轴。拖到 1988,色度渗漏、隔行梳齿、磁头切换噪声全部自动联动——不是套一层“复古滤镜”,是重放一遍那个年代的信号链。</div>
+    <div class="card"><b>02 · 真信号级 VHS 模拟</b><br>自研像素管线 + 开源 ntsc-rs 信号模拟:行级跟踪噪声、Y/C 串扰、梳齿、雪花。是“录像带”,不是“模糊”。</div>
+    <div class="card"><b>03 · 真编码器,不是噪声贴图</b><br>翻录感来自真的 mpeg4 / H.263 低码率往返——宏块、蚊噪、色块全是真实编码伪影。「再翻录一次」:每按一次,这片子就又被人转了一手。</div>
+    <div class="card"><b>04 · 音视频一起老</b><br>电话音、磁带底噪、wow & flutter、8kHz 手机喇叭——画面做旧了声音没做旧,是最出戏的事。</div>
+  </div>
+</section>
+
+<section id="gallery">
+  <h2>&gt; 效果画廊</h2>
+  <p>以下全部为 Rewind 引擎真实输出(测试图卡):</p>
+  <figure><img src="img/sheet_spike.png" alt="糊与录像带的区别">
+    <figcaption>“模糊”与“录像带”的差距:中间是普通滤镜能到的极限,右边是信号级模拟(梳齿/色度振铃/底部磁头切换带)</figcaption></figure>
+  <figure><img src="img/sheet_era.png" alt="年代轴渐变">
+    <figcaption>年代轴四个刻度:1970 胶片 → 1988 VHS → 2004 翻录 DVD → 2013 网页 360P,参数随年代连续联动</figcaption></figure>
+  <figure><img src="img/sheet_m2c.png" alt="VHS 信号级与近似对比">
+    <figcaption>1978 近似路径 vs 1990 信号级路径 vs 独立 VHS 预设</figcaption></figure>
+  <figure><img src="img/sheet_reclip.png" alt="再翻录代际损失">
+    <figcaption>「再翻录一次」×2:每多转一手,宏块与蚊噪真实叠加一代</figcaption></figure>
+</section>
+
+<section>
+  <h2>&gt; 常见问题</h2>
+  <dl class="faq">
+    <dt>为什么我的高清视频变“糊”了?</dt><dd>对,这就是目的。</dd>
+    <dt>处理一个视频要多久?</dt><dd>纯 CPU。10 秒 1080p 素材最快 8.5 秒完成;不需要显卡,不挑驱动。</dd>
+    <dt>会上传我的素材吗?</dt><dd>不会。整个应用没有服务器,断网可用。</dd>
+    <dt>能伪造老录像当“证据”吗?</dt><dd>不能也不许。输出默认嵌入“Rewind 做旧处理”元数据,详见用户协议。</dd>
+  </dl>
+</section>
+
+<section id="download">
+  <h2>&gt; 下载</h2>
+  <p class="lead">Windows 安装包 / Linux AppImage / macOS dmg —— <b style="color:var(--dim)">发布在即,先 <a href="#" style="color:var(--amber)">订阅提醒</a>。</b></p>
+</section>
+</div>
+
+<footer>
+  Rewind · 本地做旧,世代留痕<br>
+  使用教程 · 开源许可声明 · 隐私政策 · 反馈
+</footer>
+</body>
+</html>

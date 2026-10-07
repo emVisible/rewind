@@ -1,0 +1,60 @@
+{
+  "id": "dvd2005",
+  "name": "网吧翻录 DVD",
+  "era": 2005,
+  "schema": 1,
+  "video": [
+    {
+      "stage": "resize",
+      "impl": "ffmpeg",
+      "params": {
+        "w": 640,
+        "h": 360,
+        "flags": "bicubic"
+      }
+    },
+    {
+      "stage": "codec_roundtrip",
+      "impl": "ffmpeg",
+      "params": {
+        "codec": "mpeg4",
+        "q": 14,
+        "container": "mp4",
+        "audio_bitrate": "64k"
+      }
+    },
+    {
+      "stage": "resize",
+      "impl": "ffmpeg",
+      "params": {
+        "mode": "source_canvas",
+        "flags": "bicubic"
+      }
+    },
+    {
+      "stage": "noise",
+      "impl": "ffmpeg",
+      "params": {
+        "alls": 6,
+        "allf": "t+u"
+      }
+    },
+    {
+      "stage": "color",
+      "impl": "ffmpeg",
+      "params": {
+        "saturation": 0.92,
+        "contrast": 1.02
+      }
+    }
+  ],
+  "audio": [
+    {
+      "stage": "bitrate_roundtrip",
+      "params": {
+        "bitrate": "64k"
+      }
+    }
+  ],
+  "calibrated": "2026-10-04 M0,双片源目检通过(samples/out_dvd2005_*.mp4)"
+}

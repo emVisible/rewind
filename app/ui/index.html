@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>Rewind · 影像做旧引擎</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="application-name" content="Rewind" />
+<meta name="description" id="meta-desc" content="Rewind 复现记录与传输介质的画质损失:录像带、翻录光盘、CRT 显示、胶片、监控采集、移动网络与多次转存后的电子包浆。全程在本机完成,不联网、无账号、无遥测。" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#0d0c0a" />
+<link rel="icon" href="img/favicon-32.png" sizes="32x32" type="image/png" />
+<link rel="icon" href="favicon.ico" sizes="48x48 32x32 16x16" />
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png" />
+<meta property="og:type" content="website" />
+<meta property="og:title" id="meta-og-title" content="Rewind · 影像做旧引擎" />
+<meta property="og:description" id="meta-og-desc" content="录像带 / 翻录光盘 / CRT / 胶片 / 监控 / 3GP / 电子包浆 —— 本地运行的影像做旧引擎,不联网、不上传、无遥测。" />
+<meta property="og:image" content="img/logo.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header>
+  <div class="brand"><img class="brand-mark" src="img/logo.png" alt="" width="30" height="30" aria-hidden="true" />REWIND<span class="cursor">▌</span></div>
+  <div class="tagline" data-i18n="app.tagline">影像介质退化与年代质感模拟</div>
+  <div class="head-right">
+    <button id="pro-toggle" class="ghost small" aria-expanded="false">高级参数</button>
+    <span id="engine-tag" class="mono dim"></span>
+    <button id="lang-toggle" class="ghost small" data-i18n="lang.switch" title="Switch language">EN</button>
+    <button id="about" class="ghost small" data-i18n="about">关于</button>
+  </div>
+</header>
+
+<main class="workbench pro-off" id="workbench">
+  <!-- 左栏:只放日常要动的东西 —— 选预设、做旧强度、做旧系数,加上引擎清单里的基础层(画幅/帧率/清晰度) -->
+  <aside class="rail" id="rail-left">
+    <div class="rail-head" data-i18n="rail.recipe">预设</div>
+    <div id="gallery" class="gallery" aria-label="预设对比画廊" data-i18n-aria="gallery.aria"></div>
+    <!-- 类型:同一效果的不同实现(如 VHS 的信号级 / 静态近似),不另开预设卡 -->
+    <div id="variant-row" class="variant-row" hidden>
+      <span class="variant-label" data-i18n="rail.type">类型</span>
+      <div class="variant-opts" id="variant-opts"></div>
+    </div>
+    <div id="seed-row" class="seed-row"></div>
+
+    <label class="field">
+      <span><span data-i18n="knob.intensity">做旧强度</span> · <b id="int-label">1.0×</b></span>
+      <input id="intensity" type="range" min="0.2" max="2" step="0.1" value="1" />
+      <small class="quick"><button class="mini" data-int="0.6" data-i18n="quick.light">微浆</button> <button class="mini" data-int="1" data-i18n="quick.std">标准</button> <button class="mini" data-int="1.5" data-i18n="quick.heavy">重手</button></small>
+    </label>
+    <label class="field aging" id="aging-field">
+      <span><span data-i18n="knob.aging">做旧系数</span> · <b id="aging-label">2 手</b></span>
+      <input id="aging" type="range" min="1" max="8" step="1" value="2" />
+      <div class="aging-stops"><i data-i18n="aging.stop1">1 手</i><i>2</i><i>3</i><i>4</i><i>5</i><i>6</i><i>7</i><i data-i18n="aging.stopMax">8 手·爆炸</i></div>
+      <small class="cost-wrap"><span class="cost" id="aging-cost"></span></small>
+    </label>
+
+    <section id="knobs-basic" class="knobs"></section>
+    <button id="clear-overrides" class="ghost small" data-i18n="clear.overrides" hidden>清除全部自定义</button>
+  </aside>
+
+  <!-- 中栏:单件画布(三态:空 / 预览 / 完成),底部一条运行栏 -->
+  <section class="stage">
+    <div id="recipe-chip" class="recipe-chip" hidden></div>
+    <div id="media-bar" class="media-bar" hidden></div>
+
+    <div class="canvas" id="canvas">
+      <!-- 主画面区:三种状态叠在这里;抽帧条排在它下面,不占主显示空间 -->
+      <div class="stage-main" id="stage-main">
+      <div id="hero" class="hero">
+        <div class="hero-icon">⬇</div>
+        <div><span data-i18n="hero.drop">拖入视频 / 图片,或</span> <button id="pick" class="link-btn" data-i18n="hero.pick">选择文件</button></div>
+        <button id="try-sample" class="ghost small" data-i18n="hero.try">试试示例素材</button>
+      </div>
+
+      <div id="viewer" class="viewer" hidden>
+        <div class="wipe" id="wipe">
+          <img id="wipe-src" alt="原片" data-i18n-alt="wipe.src" />
+          <img id="wipe-out" alt="做旧" data-i18n-alt="wipe.out" />
+          <div class="wipe-seam"></div>
+        </div>
+        <div class="viewer-tools">
+          <span id="out-geo" class="dim mono" hidden></span>
+          <input id="wipe-slider" type="range" min="0" max="100" value="50" step="0.5" />
+          <button id="swap-item" class="ghost small" data-i18n="viewer.swap">更换素材</button>
+          <button id="drop-item" class="ghost small" data-i18n="viewer.drop">移除</button>
+        </div>
+        <div id="busy" class="busy" hidden>
+          <div class="ring"></div>
+          <div class="busy-text"><b id="busy-stage">渲染中</b><span id="busy-pct" class="mono"></span></div>
+        </div>
+      </div>
+
+      <!-- 成品直接浏览:做完不用去文件管理器 -->
+      <div id="result-view" class="result-view" hidden>
+        <video id="result-video" controls playsinline></video>
+        <img id="result-img" alt="成品" data-i18n-alt="result.alt" />
+        <div class="rv-bar">
+          <b id="rv-name" class="mono"></b>
+          <span id="rv-meta" class="dim mono"></span>
+          <button id="rv-compare" class="ghost small" data-i18n="result.compare">对比原片</button>
+          <button id="rv-back" class="ghost small" data-i18n="result.back">返回编辑</button>
+        </div>
+      </div>
+
+      <!-- 抽帧确认:先看清再动手(长素材的保险)。排在主画面下方,不盖住对比图 -->
+      <div id="done-card" class="done-card" hidden>
+        <img id="done-thumb" alt="" />
+        <div class="done-body">
+          <div class="done-name" id="done-name"></div>
+          <div class="done-meta mono" id="done-meta"></div>
+          <div class="done-actions">
+            <button id="done-view" class="btn" data-i18n="done.view">浏览成品</button>
+            <a id="done-save" class="btn ghost-btn" download data-i18n="done.save">保存成品</a>
+            <button id="done-copy" class="ghost small" data-i18n="done.copy">复制路径</button>
+            <button id="done-again" class="ghost small" data-i18n="done.again">参数不变再来一次</button>
+            <button id="done-next" class="ghost small" data-i18n="done.next">换一个</button>
+          </div>
+        </div>
+      </div>
+      </div><!-- /stage-main -->
+
+      <div id="samples" class="samples" hidden>
+        <div class="samples-head">
+          <b data-i18n="samples.title">抽帧确认</b>
+          <span class="dim" id="samples-hint"></span>
+          <button id="samples-reroll" class="mini" data-i18n="samples.reroll">换一批帧</button>
+          <button id="samples-confirm" class="mini confirm" hidden data-i18n="samples.confirm">看过了,可以开跑</button>
+        </div>
+        <div class="samples-strip" id="samples-strip"></div>
+      </div>
+    </div>
+
+    <div id="strip" class="strip" hidden aria-label="待处理" data-i18n-aria="strip.aria"></div>
+
+    <div class="runbar">
+      <button id="start" class="primary" disabled data-i18n="act.start">开始做旧</button>
+      <button id="reclip" class="ghost" disabled data-i18n="act.reclip">⧉ 再翻录一次</button>
+      <button id="reroll" class="ghost" disabled data-i18n="act.reroll">🎲 换一批</button>
+      <span id="estimate" class="estimate dim mono"></span>
+      <span id="status" class="status">就绪</span>
+      <button id="diag" class="ghost small" hidden title="复制诊断信息" data-i18n="act.diag" data-i18n-title="act.diag.title">复制诊断</button>
+      <button id="cancel" class="ghost" disabled data-i18n="act.cancel">取消</button>
+    </div>
+  </section>
+
+  <!-- 右栏:高级参数 —— 年代与偏色这类"调味道"的东西,加上清单里剩下的全部(手风琴单开) -->
+  <aside class="rail" id="rail-right">
+    <div class="rail-head" data-i18n="rail.pro">高级参数</div>
+    <label class="field">
+      <span><span data-i18n="knob.era">年代轴</span> · <b id="era-year">1990</b></span>
+      <input id="era" type="range" min="1965" max="2026" value="1990" step="1" />
+    </label>
+    <label class="field">
+      <span><span data-i18n="knob.cast">偏色 · 变绿</span> <b id="cast-label">关</b></span>
+      <input id="cast" type="range" min="0" max="1" step="0.05" value="0" />
+    </label>
+    <div id="knobs-pro" class="pro-groups"></div>
+  </aside>
+</main>
+
+<input id="file-input" type="file" multiple hidden />
+<div id="about-modal" class="modal" hidden>
+  <div class="modal-box">
+    <div class="modal-head" data-i18n="about.title">关于 Rewind · 影像做旧引擎</div>
+    <div class="modal-body" id="about-body"></div>
+    <button class="ghost small" id="about-close" data-i18n="about.close">关闭</button>
+  </div>
+</div>
+<script src="i18n.js"></script>
+<script src="shim.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

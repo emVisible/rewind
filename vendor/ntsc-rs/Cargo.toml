@@ -1,0 +1,30 @@
+[package]
+name = "ntsc-rs"
+version = "0.1.2"
+edition = "2024"
+license = "MIT OR ISC OR Apache-2.0"
+repository = "https://github.com/valadaptive/ntsc-rs/tree/main/crates/ntscrs"
+
+[dependencies]
+fearless_simd = { version = "0.7", default-features = false }
+num_enum = { version = "0.7.5", default-features = false }
+hifijson = { version = "0.5", default-features = false, features = ["alloc"] }
+
+rayon-core = { version = "1.13.0", optional = true }
+num_cpus = { version = "1.16.0", optional = true }
+
+core_maths = { version = "0.1.1", optional = true }
+
+# 本地改动(内联进本仓库时删掉的,不是上游内容):
+#   benches/filter_profile.rs + benches/balloons.png 与配套的 [dev-dependencies] (criterion、image)
+#   和 [[bench]] 段。理由:① 我们只链接这个 crate 的库,上游 criterion bench 从不跑;
+#   ② balloons.png 是 510 KB 的第三方测试照片,来源与许可未确认,不该随我们的 MIT 仓库分发
+#   (与 assets/reference/reference.png 同一类问题)。删掉后 `cargo test` 在本目录也不会去拉 criterion。
+# 其余 src/ 一字未改。许可全文(MIT/ISC/Apache-2.0)仍待补,见 THIRD-PARTY-NOTICES.md。
+
+[features]
+default = ["std"]
+libm = ["fearless_simd/libm", "dep:core_maths"]
+std = ["fearless_simd/std", "hifijson/std"]
+rayon = ["std", "dep:rayon-core", "dep:num_cpus"]
+

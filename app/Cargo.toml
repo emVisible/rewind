@@ -1,0 +1,15 @@
+[package]
+name = "rewind-app"
+version = "0.1.0"
+edition = "2024"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde_json = "1"
+rewind-shell = { path = "../shell" }
+
+[profile.release]
+opt-level = 3

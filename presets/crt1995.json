@@ -1,0 +1,52 @@
+{
+  "id": "crt1995",
+  "name": "大屁股 CRT",
+  "era": 1995,
+  "schema": 1,
+  "video": [
+    {
+      "stage": "resize",
+      "params": {
+        "w": 960,
+        "h": 720,
+        "flags": "bilinear"
+      }
+    },
+    {
+      "stage": "crt_display",
+      "params": {
+        "scanline": 0.38,
+        "barrel": 0.18,
+        "aberration": 0.4,
+        "persistence": 0.45
+      }
+    },
+    {
+      "stage": "resize",
+      "params": {
+        "mode": "source_canvas",
+        "flags": "bilinear"
+      }
+    }
+  ],
+  "audio": [
+    {
+      "stage": "bandlimit",
+      "params": {
+        "highpass": 200,
+        "lowpass": 5500
+      }
+    },
+    {
+      "stage": "mono",
+      "params": {}
+    },
+    {
+      "stage": "gain",
+      "params": {
+        "volume": 1.1
+      }
+    }
+  ],
+  "calibrated": "M2-a 初版,待目检定标"
+}

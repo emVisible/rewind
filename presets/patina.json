@@ -1,0 +1,24 @@
+{
+  "id": "patina",
+  "name": "电子包浆",
+  "era": 2016,
+  "schema": 1,
+  "aging": 2,
+  "note": "默认预设:群里传过几手的图。包浆是减法 —— 重采样糊 + 块效应 + 色度抽稀 + 色阶断层 + 灰雾,不开锐化与饱和拉爆。",
+  "video": [
+    { "stage": "resize", "params": { "w": 1080, "h": 608, "fit": "inside", "flags": "area" } },
+    { "stage": "codec_roundtrip", "params": { "codec": "mjpeg", "q": 10, "container": "mp4", "audio_bitrate": "56k" } },
+    { "stage": "resize", "params": { "w": 750, "h": 422, "fit": "inside", "flags": "area" } },
+    { "stage": "codec_roundtrip", "params": { "codec": "mjpeg", "q": 13, "container": "mp4" } },
+    { "stage": "chroma_decimate", "params": { "to": "420" } },
+    { "stage": "band_quantize", "params": { "level": 20 } },
+    { "stage": "resize", "params": { "mode": "source_canvas", "flags": "bicubic" } },
+    { "stage": "color", "params": { "saturation": 0.95, "contrast": 0.97, "brightness": 0.02 } },
+    { "stage": "noise", "params": { "alls": 5, "allf": "u" } }
+  ],
+  "audio": [
+    { "stage": "bandlimit", "params": { "highpass": 200, "lowpass": 7000 } },
+    { "stage": "bitrate_roundtrip", "params": { "bitrate": "56k" } }
+  ],
+  "calibrated": "M6-D3 预设 A(群聊三手)。平台压缩口径(长边 1080/quality 70%)是二手资料,待真机转发实测再定标。"
+}

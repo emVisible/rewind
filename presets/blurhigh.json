@@ -1,0 +1,25 @@
+{
+  "id": "blurhigh",
+  "name": "抽象高糊",
+  "era": 2013,
+  "schema": 1,
+  "aging": 3,
+  "note": "名场面那一路:低码率 H.264 + 小画幅 + 色度大半径模糊,糊得均匀、边缘有蚊噪,音频像电话。",
+  "video": [
+    { "stage": "resize", "params": { "w": 640, "h": 360, "fit": "inside", "flags": "area" } },
+    { "stage": "codec_roundtrip", "params": { "codec": "libx264", "bitrate": "220k", "container": "mp4", "audio_bitrate": "48k" } },
+    { "stage": "resize", "params": { "w": 480, "h": 270, "fit": "inside", "flags": "area" } },
+    { "stage": "codec_roundtrip", "params": { "codec": "mpeg4", "q": 20, "container": "avi" } },
+    { "stage": "asymmetric_lowpass", "params": { "luma_radius": 1.5, "chroma_radius": 8.0 } },
+    { "stage": "band_quantize", "params": { "level": 24 } },
+    { "stage": "resize", "params": { "mode": "source_canvas", "flags": "bicubic" } },
+    { "stage": "color", "params": { "saturation": 1.05, "contrast": 1.04, "brightness": 0.01 } },
+    { "stage": "noise", "params": { "alls": 6, "allf": "t+u" } }
+  ],
+  "audio": [
+    { "stage": "bandlimit", "params": { "highpass": 400, "lowpass": 5500 } },
+    { "stage": "bitrate_roundtrip", "params": { "bitrate": "24k" } },
+    { "stage": "resample_roundtrip", "params": { "rate": 11025 } }
+  ],
+  "calibrated": "M6-D4 初版,待目检定标"
+}

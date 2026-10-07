@@ -1,0 +1,16 @@
+{
+  "id": "film1970",
+  "name": "老胶片 8mm",
+  "era": 1970,
+  "schema": 1,
+  "video": [
+    { "stage": "color_fade", "params": { "strength": 0.7 } },
+    { "stage": "noise", "params": { "alls": 16, "allf": "t+u" } },
+    { "stage": "film_damage", "params": { "seed": 11, "scratches": 0.55, "dust": 0.6, "flicker": 0.6 } }
+  ],
+  "audio": [
+    { "stage": "bandlimit", "params": { "highpass": 150, "lowpass": 4000 } },
+    { "stage": "tape_hiss", "params": { "color": "brown", "amplitude": 0.02, "mix_weight": 0.45 } }
+  ],
+  "calibrated": "M2-a 初版,待目检定标"
+}

@@ -1,0 +1,73 @@
+{
+  "id": "cctv2000",
+  "name": "监控录像",
+  "era": 2000,
+  "schema": 1,
+  "video": [
+    {
+      "stage": "chroma_decimate",
+      "params": {
+        "to": "411"
+      }
+    },
+    {
+      "stage": "resize",
+      "impl": "ffmpeg",
+      "params": {
+        "w": 640,
+        "h": 480,
+        "flags": "bicubic"
+      }
+    },
+    {
+      "stage": "fps",
+      "impl": "ffmpeg",
+      "params": {
+        "fps": 15
+      }
+    },
+    {
+      "stage": "noise",
+      "impl": "ffmpeg",
+      "params": {
+        "alls": 12,
+        "allf": "t"
+      }
+    },
+    {
+      "stage": "color",
+      "impl": "ffmpeg",
+      "params": {
+        "saturation": 0.7,
+        "contrast": 1.1,
+        "brightness": 0.02,
+        "green_mid": 0.15,
+        "blue_mid": -0.05
+      }
+    },
+    {
+      "stage": "overlay_timestamp",
+      "impl": "ffmpeg",
+      "params": {
+        "format": "%Y-%m-%d %T",
+        "rec_badge": true
+      }
+    }
+  ],
+  "audio": [
+    {
+      "stage": "bandlimit",
+      "params": {
+        "highpass": 400,
+        "lowpass": 4000
+      }
+    },
+    {
+      "stage": "gain",
+      "params": {
+        "volume": 1.2
+      }
+    }
+  ],
+  "calibrated": "2026-10-04 M0,双片源目检通过(samples/out_cctv2000_*.mp4)。drawtext 时间戳格式须用 %T(字面冒号转义不可靠)"
+}

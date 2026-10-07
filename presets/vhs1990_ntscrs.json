@@ -1,0 +1,77 @@
+{
+  "id": "vhs1990_ntscrs",
+  "name": "VHS 家用录像带",
+  "era": 1990,
+  "schema": 1,
+  "video": [
+    {
+      "stage": "chroma_decimate",
+      "params": {
+        "to": "411"
+      }
+    },
+    {
+      "stage": "matrix_roundtrip",
+      "params": {}
+    },
+    {
+      "stage": "resize",
+      "params": {
+        "w": 720,
+        "h": 480,
+        "flags": "bicubic"
+      }
+    },
+    {
+      "stage": "ntsc_vhs",
+      "params": {
+        "seed": 7
+      }
+    },
+    {
+      "stage": "resize",
+      "params": {
+        "mode": "source_canvas",
+        "flags": "bicubic"
+      }
+    },
+    {
+      "stage": "tape_ends",
+      "params": {
+        "head": 0.6,
+        "tail": 0.6,
+        "intensity": 30
+      }
+    }
+  ],
+  "audio": [
+    {
+      "stage": "bandlimit",
+      "params": {
+        "highpass": 120,
+        "lowpass": 8000
+      }
+    },
+    {
+      "stage": "wow_flutter",
+      "params": {
+        "freq": 0.7,
+        "depth": 0.02
+      }
+    },
+    {
+      "stage": "mono",
+      "params": {}
+    },
+    {
+      "stage": "tape_hiss",
+      "params": {
+        "color": "pink",
+        "amplitude": 0.015,
+        "mix_weight": 0.5
+      }
+    }
+  ],
+  "calibrated": "2026-10-04 M1:PixelPath 首个预设(ntscrs 真信号级),静态近似版保留为 vhs1990_static",
+  "variant": "信号级"
+}
