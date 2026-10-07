@@ -36,7 +36,27 @@ FFmpeg 源码获取:`https://ffmpeg.org/download.html`(与所分发二进制同�
   # 同法取 LICENSE-ISC / LICENSE-APACHE-2.0
   ```
   上游指向以 vendored `Cargo.toml` 的 `repository` 为准(`valadaptive/ntsc-rs`);核对了 `crates/ntscrs/Cargo.toml` 的版本 = **0.1.2**,与我们内联的一致。
-  **仍待补的一步**:`src/` 16 个 `.rs` 与上游逐文件 blob 一致性校验(命令 `.work/gate/verify_vendor.py`,比对上游 tree 的 blob sha 与本地 `git ls-files -s`)因 API 配额暂未跑完 —— 本仓库的主张是"内联后 `src/` 未被改动",不是"与上游最新提交一致"。
+  **上游一致性已核(2026-10-07)**:`src/` 的 16 个 `.rs` 与上游 `crates/ntscrs/src` **逐文件 blob 全等(16/16)** —— 比的是上游 tree 里的 blob sha 与本地索引里的 sha:
+  ```bash
+  # 未认证限额 60 次/小时;上游 tree 一次拿全(当时 147 条),只比 blob sha、不下载内容
+  python3 - <<'PY'
+  import json, urllib.request, subprocess
+  t = json.load(urllib.request.urlopen(urllib.request.Request(
+      "https://api.github.com/repos/ntsc-rs/ntsc-rs/git/trees/main?recursive=1",
+      headers={"User-Agent": "rewind-verify"})))["tree"]
+  up = {e["path"].split("crates/ntscrs/")[-1]: e["sha"]
+        for e in t if e["path"].startswith("crates/ntscrs/src/") and e["path"].endswith(".rs")}
+  loc = {}
+  for line in subprocess.run(["git", "ls-files", "-s", "vendor/ntsc-rs"],
+                             capture_output=True, text=True).stdout.splitlines():
+      mode, sha, stage, path = line.split()
+      if path.endswith(".rs"):
+          loc[path.replace("vendor/ntsc-rs/", "")] = sha
+  print(len(up), len(loc), "一致" if up == loc else sorted(k for k in up if loc.get(k) != up[k]))
+  PY
+  # 当时的输出:16 16 一致
+  ```
+  上游当时的 tree 是 `450c6ee`,所以这句话只对那一提交成立;`main` 会继续动,复跑上面两条即可再核。另外 `valadaptive/ntsc-rs` 已 301 迁到 org 名下的 `ntsc-rs/ntsc-rs`(内容同一份),vendored `Cargo.toml` 里仍写着旧地址 —— 那是上游文件,我们不代它改名。
 - **本地改动(仅此一处)**:删掉 `benches/filter_profile.rs` + `benches/balloons.png`,以及配套的 `[dev-dependencies]`(criterion、image)与 `[[bench]]` 段。理由:我们只链接这个 crate 的库、从不跑上游 bench;而 `balloons.png` 是 510 KB 的第三方测试照片,**出处与授权无凭据**,不该随我们的 MIT 仓库分发。`src/` 一字未改。效果:`vendor/` 从 892 KB 降到 **384 KB**,`cd vendor/ntsc-rs && cargo build --release` 仍通过,core 77 项测试与 `ntsc_check.sh` 21 项全绿。
 
 ## 3. 字体

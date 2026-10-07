@@ -285,16 +285,20 @@ fn color_chain(saturation: Option<f64>, contrast: Option<f64>, brightness: Optio
     out
 }
 
-/// 字体路径进滤镜图:反斜杠换斜杠后用**单引号包住**。
-/// 滤镜串里 `:` 是选项分隔符、`\` 是转义符,Windows 路径两样都占;转义写法(`C\:/...`)在
-/// Windows CI 上仍报 `Invalid argument`,而引号是滤镜解析器明确支持的引用方式 —— 引起来之后
-/// 里面的冒号与反斜杠都不必再转。路径自己含单引号时(极少见)退回转义写法,免得引号提前闭合。
+/// 字体路径进滤镜图:**单引号包住,里面的每个 `:` 再写成 `\:`**。
+/// 滤镜串是**两级解析**:第一级按 `[],;` 取出这个滤镜的参数串,顺手把 `'…'` 的引号吃掉
+/// (引号内的 `\` 原样保留);第二级再按 `:` 切选项。所以光加引号不够 —— 引号在第一级就没了,
+/// 第二级看到的是裸冒号,路径在 `C` 处被切断(实测 `-loglevel debug` 打出
+/// `Setting 'fontfile' to value '/…/C'`);只写一个 `\:` 也不够,第一级会把转义符吃掉。
+/// 引号里写 `\:`:第一级原样留着,第二级认这个转义,最终值才是完整的
+/// `C:/Windows/Fonts/arial.ttf`。这两条在 ffmpeg 4.4.2 上实测过,老/新解析器都吃这一套。
+/// 路径自己含单引号时(几乎不存在)只能不加引号,那时冒号得写 `\\:` —— 两级各吃一次反斜杠。
 fn esc_font(p: &str) -> String {
     let p = p.replace('\\', "/");
     if p.contains('\'') {
-        p.replace(':', "\\:")
+        p.replace(':', "\\\\:")
     } else {
-        format!("'{p}'")
+        format!("'{}'", p.replace(':', "\\:"))
     }
 }
 
@@ -530,7 +534,10 @@ fn push_video_stage(
         VideoStage::OverlayTimestamp { format, rec_badge } => {
             match font {
                 Some(f) => vf.extend(timestamp_chains(format, *rec_badge, f)),
-                None => eprintln!("warn: 跳过 overlay_timestamp(没有可用字体,或这个 ffmpeg 构建不含 drawtext 滤镜)"),
+                // 这里不 warn:这一层缺字体是"编译时才知道"的事,但**故意不画时间戳**的调用
+                // (原帧几何计划、`era` 生成预设)也走同一个 None。话该由真去渲染的那两处说,
+                // 见 `wants_timestamp` —— 否则用户每次抽原帧都会被告知"你缺字体"。
+                None => {}
             }
             None
         }
@@ -801,6 +808,13 @@ fn aging_audio(gens: u32) -> Vec<crate::preset::AudioStage> {
 
 pub fn build_plan(p: &Preset, media: &MediaInfo, preview: Option<f64>, font: Option<&str>) -> Result<Plan, String> {
     build_plan_windowed(p, media, preview, font, 0.0)
+}
+
+/// 这一手有没有要画的时间戳。用来决定"缺字体/缺滤镜"那句话该不该说 ——
+/// 以前这句 warn 写在 stage 编译里,于是**天生不画时间戳**的调用(原帧几何计划、
+/// `era` 生成预设)也跟着打印,用户看到的是一句没有根据的"你缺字体"。
+pub fn wants_timestamp(p: &Preset) -> bool {
+    p.video.iter().any(|s| matches!(s, VideoStage::OverlayTimestamp { .. }))
 }
 
 /// `seek` 是这一趟**从第几秒开始渲**(预览只渲 t 附近的窗口)。时间轴滤镜按渲染后的
@@ -1586,19 +1600,20 @@ mod tests {
         }
     }
 
-    /// 字体路径必须按滤镜语法转义:串里 `:` 分隔选项、`\` 是转义符,Windows 路径两样都占。
-    /// 未转义时整条 drawtext 是坏的 —— 带时间戳的预设(监控/RMVB)在那一端直接跑失败。
+    /// 字体路径必须按滤镜语法转义:串里 `:` 分隔选项、`\` 是转义符,而滤镜串要过**两级**解析。
+    /// 写法不对时整条 drawtext 是坏的 —— 带时间戳的预设(监控/RMVB)在那一端直接跑失败
+    /// (Windows CI 报的 `Invalid argument` 就是这个:`fontfile` 只拿到 `C`)。
     #[test]
     fn font_path_is_escaped_for_the_filter_graph() {
-        // Windows 形状:反斜杠变斜杠,整个路径用单引号包住(冒号不必再转)
-        assert_eq!(esc_font(r"C:\Windows\Fonts\arial.ttf"), "'C:/Windows/Fonts/arial.ttf'");
+        // Windows 形状:反斜杠换斜杠 + 引号包住 + 冒号写成 \:(两级各要吃掉一层)
+        assert_eq!(esc_font(r"C:\Windows\Fonts\arial.ttf"), "'C\\:/Windows/Fonts/arial.ttf'");
         // Unix 形状:也加引号,内容与原来一致
         assert_eq!(
             esc_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
             "'/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'"
         );
-        // 路径里有单引号时退回转义写法(否则引号会提前闭合)
-        assert_eq!(esc_font("C:\\a'b\\arial.ttf"), "C\\:/a'b/arial.ttf");
+        // 路径里有单引号时不能加引号(会提前闭合),那时冒号要两个反斜杠才经得起两级
+        assert_eq!(esc_font("C:\\a'b\\arial.ttf"), "C\\\\:/a'b/arial.ttf");
         // 真走一遍带 overlay_timestamp 的预设,看落到滤镜串里的样子
         let p = load("cctv2000");
         let plan = build_plan(&p, &hd(), None, Some(r"C:\Windows\Fonts\arial.ttf")).unwrap();
@@ -1610,10 +1625,20 @@ mod tests {
         assert!(!dt.is_empty(), "cctv2000 该有 drawtext");
         for v in &dt {
             assert!(
-                v.contains("fontfile='C:/Windows/Fonts/arial.ttf':"),
-                "字体没按滤镜语法引起来: {v}"
+                v.contains("fontfile='C\\:/Windows/Fonts/arial.ttf':"),
+                "字体没按两级解析的写法转义: {v}"
             );
         }
+    }
+
+    /// "缺字体"这句话只能由真要渲染时间戳的那一手说。
+    /// 判据绑在 stage 表上,不是绑在预设 id 上 —— 内置预设会改,`matches!` 不会跟着漂。
+    #[test]
+    fn wants_timestamp_reads_the_stage_list_not_the_preset_name() {
+        assert!(wants_timestamp(&load("cctv2000")), "监控预设该有招牌时间戳");
+        let mut p = load("cctv2000");
+        p.video.retain(|s| !matches!(s, VideoStage::OverlayTimestamp { .. }));
+        assert!(!wants_timestamp(&p), "摘掉 stage 之后还说要有,这句 warn 就又是凭印象写的");
     }
 
     #[test]

@@ -467,6 +467,9 @@ fn main() {
             // 字体必须按真实运行时一样传进来:此前固定 font=None,于是带时间戳的预设在 `plan`
             // 里永远看不到 drawtext —— 结构闸对这一整类问题就是瞎的。
             let font = ffrun::timestamp_font();
+            if font.is_none() && ffgraph::wants_timestamp(&p) {
+                eprintln!("warn: 跳过 overlay_timestamp(没有可用字体,或这个 ffmpeg 构建不含 drawtext 滤镜)");
+            }
             match ffgraph::build_plan(&p, &media, None, font.as_deref()) {
                 Ok(plan) => {
                     let mut j = ffgraph::plan_json(&plan, &media, p.aging.unwrap_or(1));

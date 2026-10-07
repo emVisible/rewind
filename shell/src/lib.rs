@@ -755,6 +755,10 @@ mod tests {
         let cancel = AtomicBool::new(false);
         let mut progress_seen = 0;
         let mut overall: Vec<f64> = vec![];
+        let mut starts: Vec<u32> = vec![];
+        let mut steps_total = 0u32;
+        let mut starts: Vec<u32> = vec![];
+        let mut steps_total = 0u32;
         let args = vec![
             "run".into(),
             "--preset".into(),
@@ -775,13 +779,31 @@ mod tests {
                     if let Some(o) = ev["overall"].as_f64() {
                         overall.push(o);
                     }
+                    if let Some(n) = ev["steps"].as_u64() {
+                        steps_total = steps_total.max(n as u32);
+                    }
+                    if ev["pct"].as_f64() == Some(0.0) {
+                        if let Some(s) = ev["step"].as_u64() {
+                            starts.push(s as u32);
+                        }
+                    }
                 }
             },
             &cancel,
         )
         .unwrap();
         assert!(events.iter().any(|e| e["type"] == "start"));
-        assert!(progress_seen >= 3, "进度事件过少: {progress_seen}");
+        // 进度事件的下限只能按"趟"结构算,不能拿条数赌时间:
+        // 旧断言写 >=3 条,macOS CI runner 上 ffmpeg 出得太快,只落了 2 条就红了。
+        // 引擎现在每趟起步必发一条 0%、收尾必发一条 100%,所以 2×趟 是稳的。
+        assert!(steps_total >= 1, "progress 事件没带 steps 字段");
+        starts.sort_unstable();
+        starts.dedup();
+        assert_eq!(starts.len() as u32, steps_total, "有趟没报起步读数: 收到 {starts:?} / 共 {steps_total} 趟");
+        assert!(
+            progress_seen >= 2 * steps_total as usize,
+            "每趟至少两条(起步+收尾):{progress_seen} 条 / {steps_total} 趟"
+        );
         // 界面画的是 overall(总体读数):它必须每条都有、绝不后退、收尾到 100。
         // 少了这一条,引擎退回"每趟各自 0→100"的老行为时界面会静默地把条扫好几遍。
         assert_eq!(overall.len(), progress_seen, "有 progress 事件没带 overall");

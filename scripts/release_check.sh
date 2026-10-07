@@ -374,6 +374,16 @@ done
 for g in aging_check.sh preset_variance.sh conc_check.sh i18n_check.js geo_check.sh safe_max.sh ntsc_check.sh param_liveness.sh param_pixels.sh param_audio.sh; do
   has .github/workflows/build.yml "scripts/$g" && ok "CI 接入 $g" || bad "CI 接入 $g" "build.yml 里没有这一步"
 done
+# 数字漂移最容易发生在"改完代码再改文档"这一步:CI 步骤名里的回归趟数必须等于两份 README 表里的数。
+# 三处都是静态文本,对不上就说明有一边没跟着改(回归闸从 92 涨到 95 的这种时刻正是高发期)。
+RG_CI=$(grep -oE 'E2E regression gate \([0-9]+' .github/workflows/build.yml | grep -oE '\([0-9]+' | tr -d '(' | head -1)
+RG_EN=$(awk -F'|' '/^\| `regression\.sh`/ {gsub(/[^0-9]/, "", $4); print $4; exit}' README.md)
+RG_ZH=$(awk -F'|' '/^\| `regression\.sh`/ {gsub(/[^0-9]/, "", $4); print $4; exit}' README_zh.md)
+if [ -n "$RG_CI" ] && [ "$RG_CI" = "$RG_EN" ] && [ "$RG_CI" = "$RG_ZH" ]; then
+  ok "回归闸趟数三处一致(CI 步骤名 / EN README / zh README = $RG_CI)"
+else
+  bad "回归闸趟数三处一致" "CI=[$RG_CI] EN=[$RG_EN] ZH=[$RG_ZH]"
+fi
 [ -s fixtures/test_odd.mp4 ] && ok "奇数尺寸备测件在库" || bad "奇数尺寸备测件在库" "缺 fixtures/test_odd.mp4"
 # .work 治理入口必须真的能跑:它报告"哪些能删、删了怎么回来",写坏了就等于没有
 CW=$(bash scripts/clean_work.sh 2>&1 | tail -1)

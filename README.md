@@ -120,7 +120,7 @@ docs/     Design record and milestone ledger (Chinese).
 ## Tests
 
 ```bash
-cd core  && cargo test     # 79
+cd core  && cargo test     # 83
 cd shell && cargo test     # 14
 ```
 
@@ -130,7 +130,7 @@ are not meaningful.
 
 | Gate | Checks | Count |
 |---|---|---|
-| `regression.sh` | every preset × every era step, batch, preview, image mode on even and odd canvases, watermark, audio, temp-file residue, web upload, gallery assets, progress readout, ENOSPC | 92 |
+| `regression.sh` | every preset × every era step, batch, preview, image mode on even and odd canvases, watermark, audio, temp-file residue, web upload, gallery assets, progress readout, ENOSPC, drive-letter font paths | 95 |
 | `geo_check.sh` | DAR/SAR/crop contract: comparison layers share geometry, delivery aspect is baked into pixels | 59 |
 | `aging_check.sh` | generation ladder: no step gets newer, ≥5 of 7 steps strictly worse, 1-to-8 SSIM drop >0.30, canvas invariant, phase change at 6, deterministic | 28 |
 | `safe_max.sh` | no inverted ranges, rejections readable, legal extremes still render | 23 |
@@ -143,7 +143,7 @@ are not meaningful.
 | `axis_check.sh` | frame-rate and aspect axes, quantitative | assertions |
 | `preset_gallery.sh --check` | four gallery assets per preset | 11 presets |
 | `i18n_check.js` | zh/en key parity, English text for every engine string, error codes decodable both ways | 25 |
-| `release_check.sh` | licence, notices, version parity, assets in the index, gate and CI completeness, README completeness, repo hygiene | 93 |
+| `release_check.sh` | licence, notices, version parity, assets in the index, gate and CI completeness, README completeness, repo hygiene | 94 |
 
 Three levels of liveness, because a control can break at any of them: the value does not reach
 the plan, the plan does not change the pixels, or the change is audio-only and frame hashes

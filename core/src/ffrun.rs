@@ -67,6 +67,68 @@ pub fn emit(prog: &Prog, pct: f64) {
     );
 }
 
+/// ffmpeg 失败时该把哪几行给用户看。
+/// ffmpeg 的滤镜报错会把整条链原样回显,单行轻松过千字;旧写法直接取 stderr 末尾
+/// 600 字节,窗口里全是回显,真正那两句(`Invalid argument` / `No such filter` /
+/// `Fontconfig error`)被挤出屏幕 —— Windows CI 上连续两轮都只能靠猜报错原因。
+/// 现在按行挑:短句留原文;长句留两头(`around:` 那种则留报错位置之后一小段),总数再收进预算。
+pub fn ffmpeg_error_digest(err: &[u8]) -> String {
+    fn clip(s: &str, n: usize) -> String {
+        let mut it = s.chars();
+        let head: String = it.by_ref().take(n).collect();
+        if it.next().is_some() {
+            format!("{head}…")
+        } else {
+            head
+        }
+    }
+    fn tail_clip(s: &str, n: usize) -> String {
+        let cs: Vec<char> = s.chars().collect();
+        let cut = cs.len().saturating_sub(n);
+        let mut out = String::new();
+        if cut > 0 {
+            out.push('…');
+        }
+        out.extend(&cs[cut..]);
+        out
+    }
+    fn fold(line: &str) -> String {
+        if line.chars().count() <= 160 {
+            return line.to_string();
+        }
+        match line.find("around:") {
+            Some(i) => {
+                let after = line[i + "around:".len()..].trim_start();
+                format!("{} around: {}", clip(line[..i].trim_end(), 72), clip(after, 120))
+            }
+            // 结论常常写在同一行的末尾(如 "… : No space left on device),所以两头都留
+            None => format!("{} … {}", clip(line, 80), tail_clip(line, 80)),
+        }
+    }
+    let text = String::from_utf8_lossy(err);
+    let mut lines: Vec<String> = Vec::new();
+    for raw in text.lines().map(str::trim).filter(|l| !l.is_empty()) {
+        let kept = fold(raw);
+        if lines.last().map(|l| l == &kept).unwrap_or(false) {
+            continue;
+        }
+        lines.push(kept);
+    }
+    // ffmpeg 的结论永远在最后几行,所以超预算时留尾部
+    let mut out: Vec<String> = Vec::new();
+    let mut budget = 700usize;
+    for l in lines.into_iter().rev() {
+        let cost = l.chars().count() + 1;
+        if !out.is_empty() && cost > budget {
+            break;
+        }
+        budget = budget.saturating_sub(cost);
+        out.push(l);
+    }
+    out.reverse();
+    out.join("\n")
+}
+
 #[derive(Deserialize)]
 struct ProbeJson {
     streams: Vec<Stream>,
@@ -479,8 +541,10 @@ pub fn run_pass(
     let st = child.wait().map_err(|e| e.to_string())?;
     if !st.success() {
         let err = err_handle.join().unwrap_or_default();
-        let tail = String::from_utf8_lossy(&err[err.len().saturating_sub(600)..]).to_string();
-        return Err(coded(ENGINE_PASS, format!("{} 趟执行失败 (exit {:?}):\n{}", label, st.code(), tail)));
+        return Err(coded(
+            ENGINE_PASS,
+            format!("{} 趟执行失败 (exit {:?}):\n{}", label, st.code(), ffmpeg_error_digest(&err)),
+        ));
     }
     // 退出码 0 不等于有产物:静帧走 tinterlace 这类"吃两帧出一帧"的滤镜会输出 0 帧,
     // 那时 ffmpeg 正常退出而文件不存在 —— 必须当场报错,否则错误会漂到后面的改名步骤。
@@ -489,11 +553,11 @@ pub fn run_pass(
         Ok(_) => return Err(coded(ENGINE_PASS, format!("{} 趟产出空文件: {:?}", label, out_path))),
         Err(_) => {
             let err = err_handle.join().unwrap_or_default();
-            let tail = String::from_utf8_lossy(&err).trim().to_string();
-            let hint = if tail.is_empty() {
+            let hint = ffmpeg_error_digest(&err);
+            let hint = if hint.is_empty() {
                 String::new()
             } else {
-                format!(";ffmpeg 尾部输出:{}", &tail[tail.len().saturating_sub(400)..])
+                format!(";ffmpeg 报错:{hint}")
             };
             return Err(format!(
                 "{} 趟没有产出文件(滤镜链吃掉了全部帧?): {:?}{hint}",
@@ -518,6 +582,36 @@ mod tests {
         assert_eq!(timestamp_font_for(false, Some("/x/arial.ttf".into())), None);
         assert_eq!(timestamp_font_for(true, None), None);
         assert_eq!(timestamp_font_for(false, None), None);
+    }
+
+    /// ffmpeg 报错时把整条滤镜链回显在同一行里,旧写法取 stderr 末尾 600 字节 ——
+    /// 窗口被回显占满,真正的结论行(`Invalid argument` 那一句)被挤出去。Windows CI
+    /// 上连续两轮都只能靠猜,这条测试就是那场事故的形状。
+    #[test]
+    fn the_conclusion_line_survives_the_chain_echo() {
+        let chain = "eq=contrast=1.2:saturation=0.8,".repeat(60);
+        let stderr = format!(
+            "[AVFilterGraph @ 0x55a1] Error parsing a filter description around: ,drawtext=fontfile='C:/Windows/Fonts/arial.ttf':text='REC'{chain}\nError initializing complex filters.\nInvalid argument\n"
+        );
+        let d = super::ffmpeg_error_digest(stderr.as_bytes());
+        assert!(d.contains("Invalid argument"), "结论行被挤掉了:{d}");
+        assert!(d.contains("Error parsing a filter description"), "报错种类没了:{d}");
+        assert!(
+            d.contains("around: ,drawtext=fontfile='C:/Windows/Fonts/arial.ttf'"),
+            "报错位置没了:{d}"
+        );
+        assert!(!d.contains(&chain[..180]), "整条链又被照抄回来了:{d}");
+        assert!(d.chars().count() <= 760, "超出预算:{} 字", d.chars().count());
+    }
+
+    /// 空 stderr 不许编出假报错;超长但没有任何结论行的输出,也只能截断保留。
+    #[test]
+    fn an_empty_stderr_yields_no_digest() {
+        assert_eq!(super::ffmpeg_error_digest(b""), "");
+        assert_eq!(super::ffmpeg_error_digest(b"\n  \n"), "");
+        let long = "z".repeat(4000);
+        let d = super::ffmpeg_error_digest(long.as_bytes());
+        assert!(!d.is_empty() && d.chars().count() <= 760, "长行没被收住:{}", d.chars().count());
     }
 
     /// 总体读数的算法:前 (step-1) 趟算满 + 本趟占的 1/steps。

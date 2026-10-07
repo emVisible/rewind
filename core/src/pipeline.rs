@@ -396,6 +396,9 @@ pub fn run_preset_windowed(
     let tag = run_tag();
     let tmp = out_dir.join(format!(".{base}.tmp.{tag}.{ext}"));
     let font = ffrun::timestamp_font();
+    if font.is_none() && ffgraph::wants_timestamp(&preset) {
+        eprintln!("warn: 跳过 overlay_timestamp(没有可用字体,或这个 ffmpeg 构建不含 drawtext 滤镜)");
+    }
 
     println!(
         "{}",
@@ -418,6 +421,10 @@ pub fn run_preset_windowed(
         let mut prev = input.to_path_buf();
         for (i, step) in plan.steps.iter().enumerate() {
             let prog = ffrun::Prog { step: (i + 1) as u32, steps: n as u32 };
+            // 每趟起步先报一条 0%。ffmpeg 的 out_time 读数取决于它跑多快,快机器上
+            // 小样一趟可能一条中间读数都没有 —— "起步 + 收尾"是结构性的两条,界面
+            // 由此保证点下运行就能看到条在动,而不是等 ffmpeg 自己开口。
+            ffrun::emit(&prog, 0.0);
             let step_out = if i == n - 1 {
                 tmp.clone()
             } else {
@@ -532,6 +539,20 @@ mod tests {
         );
         assert!(tagged.starts_with("[engine.disk_full] "), "换码失败:{tagged}");
         assert_eq!(tagged.matches(']').count(), 1, "码叠码:{tagged}");
+    }
+
+    /// 摘要与盘满判据是两条独立的链,接口处必须接得上:ffrun 现在把 ffmpeg 的长行折头折尾,
+    /// 而 ENOSPC 那句话常写在同一行的**末尾** —— 折丢了就是"该清磁盘却让你去查滤镜"。
+    #[test]
+    fn the_error_digest_still_feeds_the_disk_full_note() {
+        let raw = format!(
+            "[out#0/mp4 @ 0x1] Error writing trailer of {} : No space left on device\n",
+            "C:/Users/someone/Videos/素材".repeat(30)
+        );
+        assert!(raw.chars().count() > 400, "样例本身不够长,测不出折叠:{}", raw.chars().count());
+        let d = crate::ffrun::ffmpeg_error_digest(raw.as_bytes());
+        let got = disk_full_hint(&d, Path::new("/tmp/x"));
+        assert!(got.starts_with("[engine.disk_full] "), "盘满码在摘要之后丢了:{got}");
     }
 
     /// 反向:普通滤镜错误绝不能贴"盘满"标签,否则用户会去清磁盘而问题还在管线里。

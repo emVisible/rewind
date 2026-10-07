@@ -410,5 +410,68 @@ else
 fi
 
 echo
+echo "=== 15. 时间戳的字体路径:带冒号那条必须与无冒号那条逐字节相同 ==="
+# 盘符路径是 Windows 独有的形状,而滤镜串要过**两级**解析(第一级吃掉 '…' 引号、第二级按 :
+# 切选项)。写法不对时 fontfile 只拿到 "C",整条 drawtext 坏掉 —— Windows CI 报的
+# [engine.pass] Invalid argument 就是这条。Linux 上把同一个字体放进一个名字带冒号的目录,
+# 就造出了同构的路径;造不出这形状的平台必须明说 SKIP,不许让这两条空转。
+FDIR="$OUT/fontdir"
+FC_DEF=$(fc-match -f '%{file}' Sans 2>/dev/null | tail -1)
+[ -f "${FC_DEF:-}" ] || FC_DEF=$(fc-match -f '%{file}' 2>/dev/null | tail -1)
+# 选的字体必须和"路径错了之后 fontconfig 兜底的那个"长得不一样,否则这条闸是空转的:
+# Linux 上字体路径被冒号切断时 drawtext 不会报错,它会安静地改用默认字体 —— 本机第一次
+# 拿 DejaVu 试的时候,坏写法照样"通过",就是因为兜底就是同一个字体。
+SRC_FONT=""
+if [ -f "${FC_DEF:-}" ]; then
+  DEF_MD5=$(md5sum "$FC_DEF" | cut -c1-32)
+  for f in /usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf \
+           /usr/share/fonts/truetype/*/*.ttf /usr/share/fonts/*/*/*.ttf; do
+    [ -f "$f" ] || continue
+    [ "$(md5sum "$f" | cut -c1-32)" != "$DEF_MD5" ] || continue
+    SRC_FONT=$f
+    break
+  done
+fi
+FONT_OK=0
+if [ -n "$SRC_FONT" ] && mkdir -p "$FDIR/C:" 2>/dev/null \
+   && cp -f "$SRC_FONT" "$FDIR/C:/f.ttf" 2>/dev/null && cp -f "$SRC_FONT" "$FDIR/f.ttf" 2>/dev/null; then
+  FONT_OK=1
+fi
+stamp_md5() { # $1=标签 $2=字体路径 $3=时间戳文本(固定文字,免得两次跑差在时钟上)
+  local d="$OUT/stamp_$1" fr
+  rm -rf "$d"; mkdir -p "$d"
+  REWIND_FONT="$2" "$BIN" preview --preset "$ROOT/presets/cctv2000.json" --input "$FIX" \
+    --out-dir "$d" --t 1 --override "overlay_timestamp.format=$3" >"$d/log" 2>&1 || return 1
+  fr=$(ls "$d"/*cctv2000*.png 2>/dev/null | grep -v '_src\.png$' | head -1)
+  [ -n "$fr" ] || return 1
+  md5sum "$fr" | cut -c1-32
+}
+if [ "$FONT_OK" = "1" ]; then
+  SMP=$(stamp_md5 plain "$FDIR/f.ttf" STATIC)
+  SMC=$(stamp_md5 colon "$FDIR/C:/f.ttf" STATIC)
+  SMD=$(stamp_md5 def "$FC_DEF" STATIC)
+  SMO=$(stamp_md5 other "$FDIR/f.ttf" OTHER)
+  if [ -z "$SMP" ] || [ -z "$SMC" ]; then
+    bad "带冒号的字体路径也要跑得通" "有一趟没出图:无冒号=${SMP:-×} 带冒号=${SMC:-×}"
+  elif [ "$SMP" != "$SMC" ]; then
+    bad "带冒号的字体路径与同字体无冒号等值" "同一个字体两条路径出了两种画面($SMP vs $SMC)—— 冒号在第二级解析里把路径切断了,drawtext 拿到的是 'C'"
+  else
+    ok "带冒号的字体路径与同字体无冒号等值"
+  fi
+  if [ -n "$SMP" ] && [ -n "$SMO" ] && [ "$SMP" = "$SMO" ]; then
+    bad "时间戳那一块确实画上了东西" "STATIC 与 OTHER 两种文字出的是同一张图,这一层压根没渲染"
+  elif [ -n "$SMP" ] && [ -n "$SMO" ]; then
+    ok "时间戳那一块确实画上了东西"
+  fi
+  if [ -n "$SMP" ] && [ -n "$SMD" ] && [ "$SMP" = "$SMD" ]; then
+    bad "这条闸有牙:所选字体与 fontconfig 兜底字体画出来必须不同" "换成兜底字体也得到同一张图($SMP)—— 上面那条等值判断是空转,本机测不出转义错误"
+  elif [ -n "$SMP" ] && [ -n "$SMD" ]; then
+    ok "这条闸有牙:所选字体与 fontconfig 兜底字体画出来不同"
+  fi
+else
+  printf 'SKIP  带冒号的字体路径在本平台(%s)造不出判别用的形状(缺 fc-match、造不出 C: 目录,或找不到与兜底不同的字体),这一条交给三端 CI 的端到端跑覆盖\n' "$(uname -s)"
+fi
+
+echo
 echo "REGRESSION: PASS=$PASS FAIL=$FAIL"
 [ "$FAIL" = "0" ] || exit 1
