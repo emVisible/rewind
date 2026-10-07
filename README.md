@@ -113,7 +113,7 @@ presets/  Built-in presets, schema v1, read-only.
 fixtures/ Synthetic gate inputs (ffmpeg lavfi; no third-party rights).
 assets/   Brand icons, sample media, gallery reference, each with CREDITS notes.
 scripts/  Gates and asset bakers.
-vendor/   ntsc-rs, vendored as source.
+vendor/   ntsc-rs, vendored as source, with its upstream licence texts.
 docs/     Design record and milestone ledger (Chinese).
 ```
 
@@ -196,8 +196,6 @@ code. Report the code alone in issues. Table: `core/src/errcode.rs`, 20 codes.
   after one run with the same parameters, the measured value is used.
 - HDR and variable-frame-rate sources are reported and warned about, not converted.
 - Region/broadcast-format axes and time-based damage events are designed, not implemented.
-- The vendored `ntsc-rs` does not yet include its upstream licence texts. `release_check.sh`
-  fails until they are added; command in `THIRD-PARTY-NOTICES.md` §2.1.
 
 Environment overrides: `REWIND_CORE`, `REWIND_FFMPEG`, `REWIND_FFPROBE`, `REWIND_FFMPEG_DIR`,
 `REWIND_PRESETS`, `REWIND_USER_PRESETS`, `REWIND_UI`, `REWIND_CONFIG`, `REWIND_UPLOAD_DIR`,
@@ -219,7 +217,7 @@ how the result is used.
 
 - Rewind: MIT (`LICENSE`).
 - FFmpeg: invoked as a subprocess, not linked. If a bundle ships FFmpeg binaries, their
-  GPL/LGPL texts and source location ship with them.
+  GPL/LGPL texts and source location ship with them. Full list of obligations: `THIRD-PARTY-NOTICES.md`.
 - `ntsc-rs` (`vendor/ntsc-rs`): MIT OR ISC OR Apache-2.0.
 - Tauri 2: MIT OR Apache-2.0.
 - ALH Pro was read for its architecture and engineering notes; no code is used (proprietary,

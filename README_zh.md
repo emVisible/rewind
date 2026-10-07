@@ -102,7 +102,7 @@ presets/  内置预设,schema v1,只读。
 fixtures/ 闸用的合成夹具(ffmpeg lavfi 生成,无第三方版权)。
 assets/   品牌图标、示例素材、画廊参考图,各带 CREDITS 说明。
 scripts/  闸与资产烘培工具。
-vendor/   ntsc-rs,以源码形式内联。
+vendor/   ntsc-rs,以源码形式内联,并带上游许可全文。
 docs/     设计记录与里程碑台账(中文)。
 ```
 
@@ -180,8 +180,6 @@ ffmpeg 4.4.2。复现任一行的命令:
 - 首次运行前的耗时估计取 1–1.5 s 预览窗口,悲观 1.6–7 倍;同参数跑过一次后改用实测值。
 - HDR 与变帧率素材只报告和警告,不自动转 SDR / CFR。
 - 区域/制式轴与时间轴上的损坏事件已设计、未实现。
-- 内联的 `ntsc-rs` 还没有上游许可全文,`release_check.sh` 在补齐前会失败,命令见
-  `THIRD-PARTY-NOTICES.md` §2.1。
 
 环境变量:`REWIND_CORE`、`REWIND_FFMPEG`、`REWIND_FFPROBE`、`REWIND_FFMPEG_DIR`、
 `REWIND_PRESETS`、`REWIND_USER_PRESETS`、`REWIND_UI`、`REWIND_CONFIG`、`REWIND_UPLOAD_DIR`、
@@ -201,7 +199,7 @@ Rewind v0.1.0 · 本文件经 Rewind 做旧处理(合成年代效果,非原始�
 ## 许可与第三方
 
 - Rewind:MIT(`LICENSE`)。
-- FFmpeg:子进程调用,不链接。若安装包捆绑 FFmpeg 二进制,须随附其 GPL/LGPL 全文与源码地址。
+- FFmpeg:子进程调用,不链接。若安装包捆绑 FFmpeg 二进制,须随附其 GPL/LGPL 全文与源码地址。义务清单全文见 `THIRD-PARTY-NOTICES.md`。
 - `ntsc-rs`(`vendor/ntsc-rs`):MIT OR ISC OR Apache-2.0。
 - Tauri 2:MIT OR Apache-2.0。
 - ALH Pro 的架构与公开工程文档被参考过,未使用其代码(专有许可,目录被 `.gitignore` 永久排除)。

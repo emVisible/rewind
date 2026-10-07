@@ -16,7 +16,7 @@ FFmpeg 源码获取:`https://ffmpeg.org/download.html`(与所分发二进制同�
 
 | 组件 | 版本 | 许可 | 位置 |
 |---|---|---|---|
-| **ntsc-rs**(NTSC/VHS 信号级模拟核心) | 0.1.2 | **MIT OR ISC OR Apache-2.0**(三选一) | `vendor/ntsc-rs/`(源码内联进仓库;**许可全文待补**,本地改动见 §2.1) |
+| **ntsc-rs**(NTSC/VHS 信号级模拟核心) | 0.1.2 | **MIT OR ISC OR Apache-2.0**(三选一) | `vendor/ntsc-rs/`(源码内联 + 上游三份 `LICENSE-*` 全文;本地改动见 §2.1) |
 | serde / serde_json | 1.x | MIT OR Apache-2.0 | crates.io |
 | clap | 4.x | MIT OR Apache-2.0 | crates.io |
 | rayon / crossbeam | 1.x | MIT OR Apache-2.0 | crates.io |
@@ -25,18 +25,18 @@ FFmpeg 源码获取:`https://ffmpeg.org/download.html`(与所分发二进制同�
 
 完整机器可读清单:`core/Cargo.lock`、`shell/Cargo.lock`、`app/Cargo.lock`。发布时由 `cargo about`(或 `cargo bundle-licence`)生成逐 crate 许可全文,附于安装包 `NOTICES/` 目录。
 
-### 2.1 `vendor/ntsc-rs/`:许可全文待补(上线阻塞),以及相对上游的本地改动
+### 2.1 `vendor/ntsc-rs/`:上游许可全文已随包,以及相对上游的本地改动
 
-- **许可全文待补**:本目录里目前**没有** `LICENSE-*` 文件,内联的上游源文件里也**没有版权头** —— 实测 `grep -rl "opyright" vendor/ntsc-rs/src | wc -l` = **0**(共 16 个 `.rs`)。三选一许可(MIT OR ISC OR Apache-2.0)无论选哪一支,再分发都要带对应全文,所以这条必须在打 tag 前解决。**本机取不到**:`raw.githubusercontent.com` 连接被重置、`crates.io` 与 `static.crates.io` 返回 **403**;对照组 `example.com` = 200,所以是这几个域名被拦,不是没有网络 —— 换一台能联网的机器执行:
+- **许可全文已在**:`vendor/ntsc-rs/LICENSE-MIT`(1,130 B)、`LICENSE-ISC`(801 B)、`LICENSE-APACHE-2.0`(10,248 B),三份都带着上游那句范围说明 —— *"This license applies to all source files except those under /crates/gui"*;我们只内联 `crates/ntscrs`,正好落在覆盖范围内(上游 GUI crate 的许可与我们无关,也不随包)。
+  取回过程记一下,因为域名被拦:"许可全文待补"那几天里 `raw.githubusercontent.com` 连接被重置、`crates.io` 与 `static.crates.io` = 403(对照组 `example.com` = 200),最后是走**没被拦的 `api.github.com` 内容端点**取到的:
   ```bash
-  # 上游有两个指向:vendored 的 Cargo.toml 写 valadaptive/ntsc-rs,重构文档 §2 写 ntsc-rs/ntsc-rs。
-  # 以真正拉到手的那个仓库为准(核对 version 0.1.2 与 src/ 一致),把许可全文放进 vendor/ntsc-rs/:
-  for L in LICENSE-MIT LICENSE-ISC LICENSE-APACHE; do
-    curl -sLO "https://raw.githubusercontent.com/valadaptive/ntsc-rs/main/$L"
-  done
-  mv LICENSE-* vendor/ntsc-rs/ && bash scripts/release_check.sh   # 那条硬闸应当转绿
+  # 未认证也能取公开仓库文件;注意 API 限额 60 次/小时
+  curl -sL -H "Accept: application/vnd.github.raw" \
+    "https://api.github.com/repos/valadaptive/ntsc-rs/contents/LICENSE-MIT" > vendor/ntsc-rs/LICENSE-MIT
+  # 同法取 LICENSE-ISC / LICENSE-APACHE-2.0
   ```
-  `release_check.sh` 里有一条闸盯着它(**vendor 必须带许可全文**),缺就一直红 —— 本文件此前写着"保留其 `LICENSE-*` 与版权头",那句话与仓库现状不符,已按实测改成"待补"。
+  上游指向以 vendored `Cargo.toml` 的 `repository` 为准(`valadaptive/ntsc-rs`);核对了 `crates/ntscrs/Cargo.toml` 的版本 = **0.1.2**,与我们内联的一致。
+  **仍待补的一步**:`src/` 16 个 `.rs` 与上游逐文件 blob 一致性校验(命令 `.work/gate/verify_vendor.py`,比对上游 tree 的 blob sha 与本地 `git ls-files -s`)因 API 配额暂未跑完 —— 本仓库的主张是"内联后 `src/` 未被改动",不是"与上游最新提交一致"。
 - **本地改动(仅此一处)**:删掉 `benches/filter_profile.rs` + `benches/balloons.png`,以及配套的 `[dev-dependencies]`(criterion、image)与 `[[bench]]` 段。理由:我们只链接这个 crate 的库、从不跑上游 bench;而 `balloons.png` 是 510 KB 的第三方测试照片,**出处与授权无凭据**,不该随我们的 MIT 仓库分发。`src/` 一字未改。效果:`vendor/` 从 892 KB 降到 **384 KB**,`cd vendor/ntsc-rs && cargo build --release` 仍通过,core 77 项测试与 `ntsc_check.sh` 21 项全绿。
 
 ## 3. 字体

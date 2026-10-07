@@ -253,11 +253,32 @@ done
   && ok "图标齐全(32/128/ico)"
 
 echo "=== 仓库卫生 ==="
-TRACKED=$(git ls-files | grep -i 'alh' || true)
-[ -z "$TRACKED" ] && ok "专有参考项目零入库(跟踪路径无 alh)" || bad "专有参考项目零入库" "$TRACKED"
+# git 默认会把非 ASCII 路径写成 "docs/\345\217\202…" —— 前缀多了个引号,`^docs/` 这类锚点全部落空,
+# 于是"路径过滤"静默变成"什么都不匹配"。所有读文件清单的检查都走 lsf()(强制不转义)。
+lsf() { git -c core.quotePath=false ls-files; }
+TRACKED=$(lsf | grep -i 'alh' | grep -v '^docs/' || true)
+[ -z "$TRACKED" ] && ok "专有参考项目源码零入库(跟踪路径无 alh,docs/ 下的分析文档除外)" \
+  || bad "专有参考项目源码零入库" "跟踪到了:$TRACKED"
+ALHDOC=$(lsf | grep -i 'alh' | grep '^docs/' || true)
+if [ -n "$ALHDOC" ]; then
+  # 这条豁免只给"散文":这些文件里的每个代码块都必须是我们本人跑过的命令,不许是对方的源码
+  BADB=$(python3 - $ALHDOC <<'PY'
+import io, re, sys
+bad = []
+for p in sys.argv[1:]:
+    s = io.open(p, encoding="utf-8").read()
+    for blk in re.findall(r"```[^\n]*\n(.*?)```", s, re.S):
+        first = next((l.strip() for l in blk.splitlines() if l.strip()), "")
+        if first and not re.match(r"(grep|find|curl|git|awk|sed|ls|du|wc|stat|bash|python3|cargo|ffmpeg|ffprobe)\b", first):
+            bad.append("%s: 代码块开头不是命令 —— %s" % (p, first[:46]))
+print(" | ".join(bad))
+PY
+)
+  [ -z "$BADB" ] && ok "ALH 分析文档只含命令与散文(无源码摘录)" || bad "ALH 分析文档只含命令与散文" "$BADB"
+fi
 INSIDE=$(find . -maxdepth 2 -type d -iname '*alh*' -not -path './.git*' || true)
 [ -z "$INSIDE" ] && ok "参考源码目录已移出仓库" || bad "参考源码目录仍在仓库内" "$INSIDE"
-SECRETS=$(git ls-files | grep -i -E '\.env$|id_rsa|\.pem$|credentials' || true)
+SECRETS=$(lsf | grep -i -E '\.env$|id_rsa|\.pem$|credentials' || true)
 [ -z "$SECRETS" ] && ok "无可疑凭据文件" || bad "无可疑凭据文件" "$SECRETS"
 for l in core/Cargo.lock shell/Cargo.lock; do
   [ -s "$l" ] || bad "锁文件 $l" "缺失(CI 复现构建需要)"
@@ -266,7 +287,7 @@ done
 if [ -s app/Cargo.lock ]; then ok "锁文件在位(app 桌面壳)"; else
   echo "SKIP  app/Cargo.lock —— 本机 crates.io 解析不通(tauri 依赖树),由 CI 首次构建生成后入库;打 tag 前必须补上"
 fi
-BIG=$(git ls-files | xargs -I{} sh -c 'test -f "{}" && [ $(stat -c%s "{}" 2>/dev/null || stat -f%z "{}") -gt 4194304 ] && echo {}' 2>/dev/null | head -3)
+BIG=$(lsf | xargs -I{} sh -c 'test -f "{}" && [ $(stat -c%s "{}" 2>/dev/null || stat -f%z "{}") -gt 4194304 ] && echo {}' 2>/dev/null | head -3)
 [ -z "$BIG" ] && ok "无 >4MB 文件入库" || bad "无 >4MB 文件入库" "$BIG"
 
 echo "=== 品牌与示例资产"
