@@ -466,7 +466,7 @@ fn main() {
             };
             // 字体必须按真实运行时一样传进来:此前固定 font=None,于是带时间戳的预设在 `plan`
             // 里永远看不到 drawtext —— 结构闸对这一整类问题就是瞎的。
-            let font = ffrun::find_font();
+            let font = ffrun::timestamp_font();
             match ffgraph::build_plan(&p, &media, None, font.as_deref()) {
                 Ok(plan) => {
                     let mut j = ffgraph::plan_json(&plan, &media, p.aging.unwrap_or(1));

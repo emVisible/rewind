@@ -109,7 +109,7 @@ docs/     设计记录与里程碑台账(中文)。
 ## 测试
 
 ```bash
-cd core  && cargo test     # 78 项
+cd core  && cargo test     # 79 项
 cd shell && cargo test     # 14 项
 ```
 
@@ -180,6 +180,7 @@ ffmpeg 4.4.2。复现任一行的命令:
 - 首次运行前的耗时估计取 1–1.5 s 预览窗口,悲观 1.6–7 倍;同参数跑过一次后改用实测值。
 - HDR 与变帧率素材只报告和警告,不自动转 SDR / CFR。
 - 区域/制式轴与时间轴上的损坏事件已设计、未实现。
+- 没有 `drawtext` 滤镜的 ffmpeg 构建(部分 Homebrew 包)会跳过烧录时间戳那一层,其余照常出片。
 
 环境变量:`REWIND_CORE`、`REWIND_FFMPEG`、`REWIND_FFPROBE`、`REWIND_FFMPEG_DIR`、
 `REWIND_PRESETS`、`REWIND_USER_PRESETS`、`REWIND_UI`、`REWIND_CONFIG`、`REWIND_UPLOAD_DIR`、

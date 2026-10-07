@@ -395,7 +395,7 @@ pub fn run_preset_windowed(
     let base = format!("{stem}_{}{suffix}", preset.id);
     let tag = run_tag();
     let tmp = out_dir.join(format!(".{base}.tmp.{tag}.{ext}"));
-    let font = ffrun::find_font();
+    let font = ffrun::timestamp_font();
 
     println!(
         "{}",

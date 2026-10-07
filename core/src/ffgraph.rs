@@ -524,7 +524,7 @@ fn push_video_stage(
         VideoStage::OverlayTimestamp { format, rec_badge } => {
             match font {
                 Some(f) => vf.extend(timestamp_chains(format, *rec_badge, f)),
-                None => eprintln!("warn: 未找到可用字体,跳过 overlay_timestamp"),
+                None => eprintln!("warn: 跳过 overlay_timestamp(没有可用字体,或这个 ffmpeg 构建不含 drawtext 滤镜)"),
             }
             None
         }

@@ -247,6 +247,30 @@ fn last_err_line(bytes: &[u8]) -> String {
         .to_string()
 }
 
+/// 这个 ffmpeg 构建里有没有 drawtext 滤镜。
+/// 不是所有构建都有:没编 libfreetype 的(某些 brew/精简包)会直接 `No such filter: 'drawtext'`,
+/// 退出码 8 —— 缺一个时间戳不该让整趟渲染失败,所以先探一次,没有就当"画不了"处理。
+pub fn drawtext_available() -> bool {
+    static CACHE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *CACHE.get_or_init(|| {
+        Command::new(ffmpeg_bin())
+            .args(["-hide_banner", "-filters"])
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).contains("drawtext"))
+            .unwrap_or(false)
+    })
+}
+
+/// 纯函数那半份,单测靠它:滤镜和字体缺一样,时间戳就只能跳过。
+pub fn timestamp_font_for(has_drawtext: bool, font: Option<String>) -> Option<String> {
+    if has_drawtext { font } else { None }
+}
+
+/// 真正能拿来画时间戳的字体(没有滤镜就没有字体可言)
+pub fn timestamp_font() -> Option<String> {
+    timestamp_font_for(drawtext_available(), find_font())
+}
+
 /// 找一款 drawtext 可用的 ttf 字体(跨平台候选)
 pub fn find_font() -> Option<String> {
     // 显式指定优先:打包分发与"字体装在非常规位置"的用户都有出路
@@ -483,7 +507,18 @@ pub fn run_pass(
 
 #[cfg(test)]
 mod tests {
-    use super::resolve_duration;
+    use super::{resolve_duration, timestamp_font_for};
+
+    /// 时间戳是"锦上添花",不是"没它就整趟失败"。某些 ffmpeg 构建没编 libfreetype
+    /// (Homebrew 的一部分精简包就是),`drawtext` 直接 `No such filter` 退出 8 ——
+    /// 那台机器上监控/RMVB 预设原本全跑不出来。缺滤镜或缺字体,都只能跳过这一层。
+    #[test]
+    fn timestamp_is_skipped_when_the_filter_or_the_font_is_missing() {
+        assert_eq!(timestamp_font_for(true, Some("/x/arial.ttf".into())).as_deref(), Some("/x/arial.ttf"));
+        assert_eq!(timestamp_font_for(false, Some("/x/arial.ttf".into())), None);
+        assert_eq!(timestamp_font_for(true, None), None);
+        assert_eq!(timestamp_font_for(false, None), None);
+    }
 
     /// 总体读数的算法:前 (step-1) 趟算满 + 本趟占的 1/steps。
     /// 界面直接画这个数,所以它必须严格不后退、且最后一趟 100% 时正好 100%。

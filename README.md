@@ -120,7 +120,7 @@ docs/     Design record and milestone ledger (Chinese).
 ## Tests
 
 ```bash
-cd core  && cargo test     # 78
+cd core  && cargo test     # 79
 cd shell && cargo test     # 14
 ```
 
@@ -196,6 +196,8 @@ code. Report the code alone in issues. Table: `core/src/errcode.rs`, 20 codes.
   after one run with the same parameters, the measured value is used.
 - HDR and variable-frame-rate sources are reported and warned about, not converted.
 - Region/broadcast-format axes and time-based damage events are designed, not implemented.
+- An ffmpeg build without the `drawtext` filter (some Homebrew variants) renders those presets without
+  the burned-in timestamp; the rest of the chain is unaffected.
 
 Environment overrides: `REWIND_CORE`, `REWIND_FFMPEG`, `REWIND_FFPROBE`, `REWIND_FFMPEG_DIR`,
 `REWIND_PRESETS`, `REWIND_USER_PRESETS`, `REWIND_UI`, `REWIND_CONFIG`, `REWIND_UPLOAD_DIR`,

@@ -19,18 +19,19 @@ rc=$?
 cat "$log"
 if [ $rc -ne 0 ]; then
   # 消息里的 "::" 与 "%" 会被 GitHub 当作命令语法,必须转义(连命令本身一起转,它常含冒号)
-  esc() { printf '%s' "$1" | tr -d '\r' | sed 's/%/%25/g; s/::/%3A%3A/g' | cut -c1-240; }
+  esc() { printf '%s' "$1" | tr '\r\n' '  ' | sed 's/%/%25/g; s/::/%3A%3A/g' | cut -c1-900; }
   printf '::error title=步骤失败::%s\n' "$(esc "退出码 $rc;命令:$*")"
+  # 注解必须是单行:消息里带换行会把 GitHub 的工作命令格式截断(实际就这么丢掉了真正的错误行)
   grep -aE "^FAIL |^PARAM [A-Z]+: (FAIL|SKIP)|\.\.\. FAILED|test result: FAILED|^error(\[E[0-9]+\])?:" "$log" \
     | head -24 \
     | while IFS= read -r l; do
         printf '::error::%s\n' "$(esc "$l")"
       done
-  # panic 的正文在 "panicked at" 的下一行,只抓一行等于没抓 —— 带上下文再发一遍
-  sed -n '/panicked at/,+1p' "$log" | head -24 | while IFS= read -r l; do
+  # panic 的正文在 "panicked at" 的下一行,只抓一行等于没抓
+  sed -n '/panicked at/,+2p' "$log" | head -30 | while IFS= read -r l; do
     printf '::error::%s\n' "$(esc "$l")"
   done
   # 最后几行兜底(权限、段错误这类没有固定形状的失败)
-  tail -4 "$log" | while IFS= read -r l; do printf '::error::尾部 %s\n' "$(esc "$l")"; done
+  tail -8 "$log" | while IFS= read -r l; do printf '::error::尾部 %s\n' "$(esc "$l")"; done
 fi
 exit $rc
