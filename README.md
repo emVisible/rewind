@@ -132,7 +132,7 @@ are not meaningful.
 |---|---|---|
 | `regression.sh` | every preset × every era step, batch, preview, image mode on even and odd canvases, watermark, audio, temp-file residue, web upload, gallery assets, progress readout, ENOSPC | 92 |
 | `geo_check.sh` | DAR/SAR/crop contract: comparison layers share geometry, delivery aspect is baked into pixels | 59 |
-| `aging_check.sh` | generation ladder SSIM-monotonic, canvas invariant, phase change at 6, deterministic | 26 |
+| `aging_check.sh` | generation ladder: no step gets newer, ≥5 of 7 steps strictly worse, 1-to-8 SSIM drop >0.30, canvas invariant, phase change at 6, deterministic | 28 |
 | `safe_max.sh` | no inverted ranges, rejections readable, legal extremes still render | 23 |
 | `ntsc_check.sh` | 12 signal knobs: defaults change nothing, each changes the picture, out-of-range coded | 21 |
 | `conc_check.sh` | concurrent previews and runs do not collide on temp or output names | 10 |

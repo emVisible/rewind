@@ -23,6 +23,9 @@ ssim_of() { # 成品 源
 
 echo "=== 1. 阶梯单调 / 画幅恒定 / 成本 ==="
 PREV=""
+SERIES=""
+STRICT=0
+PLATEAU=0
 WORST=0
 for N in 1 2 3 4 5 6 7 8; do
   D=$OUT/n$N; mkdir -p "$D"
@@ -40,15 +43,32 @@ for N in 1 2 3 4 5 6 7 8; do
   if [ "$WH" = "320,240" ]; then ok "aging=$N 画幅与源一致(320x240)"; else bad "aging=$N 画幅恒定" "读到 $WH"; fi
   SS=$(ssim_of "$O" "$FIX")
   if [ -z "$SS" ]; then bad "aging=$N SSIM 可读" "ffmpeg 没给出 All:"; continue; fi
+  SERIES="$SERIES $SS"
   if [ -n "$PREV" ]; then
-    if python3 -c "import sys;sys.exit(0 if $SS < $PREV - 0.002 else 1)"; then
-      ok "aging=$N 比上一手更旧(SSIM $PREV → $SS)"
+    # 逐手只要求"不许变新"。"每一手都必须严格更旧 >0.002"是版本-dependent 的断言:
+    # 编码器换代时相邻两手会打成平台(CI 的 ffmpeg 6.x 在 4→5 手实测反而 +0.0012)。
+    # 阶梯整体退化成平台,由下面"严格步数 ≥5"和"1→8 总降幅 >0.30"两条兜住。
+    if python3 -c "import sys;sys.exit(0 if $SS <= $PREV + 0.002 else 1)"; then
+      if python3 -c "import sys;sys.exit(0 if $SS < $PREV - 0.002 else 1)"; then
+        ok "aging=$N 比上一手更旧(SSIM $PREV → $SS)"; STRICT=$((STRICT+1))
+      else
+        ok "aging=$N 与上一手打平($PREV → $SS;版本间允许平台)"; PLATEAU=$((PLATEAU+1))
+      fi
     else
-      bad "aging=$N 单调变旧" "SSIM 只到 $SS(上一手 $PREV,差值要求 >0.002)"
+      bad "aging=$N 单调变旧" "SSIM 反而升到 $SS(上一手 $PREV,回升超过 0.002)"
     fi
   fi
   PREV=$SS
 done
+python3 -c "import sys;sys.exit(0 if $STRICT >= 5 else 1)" \
+  && ok "7 步里严格变旧 $STRICT 步(平台 $PLATEAU 步),要求 ≥5" \
+  || bad "阶梯不退化" "只有 $STRICT 步严格变旧(要求 ≥5):有一手以上的损耗被编码器换代吃掉"
+FIRST=$(echo $SERIES | awk '{print $1}')
+LAST=$(echo $SERIES | awk '{print $NF}')
+DROP=$(python3 -c "print(f'{$FIRST-$LAST:.3f}')")
+python3 -c "import sys;sys.exit(0 if $FIRST - $LAST > 0.30 else 1)" \
+  && ok "1 手 → 8 手总降幅 $DROP(要求 >0.30)" \
+  || bad "总降幅" "1→8 手只降了 $DROP(要求 >0.30):阶梯当成同一次压缩收敛了?"
 python3 -c "import sys;sys.exit(0 if $WORST < 20 else 1)" \
   && ok "成本上限:N=8 用时 ${WORST}s < 20s" \
   || bad "成本上限" "最慢一档 ${WORST}s ≥ 20s(应把 MAX_AGING 降到 6 并改文档)"

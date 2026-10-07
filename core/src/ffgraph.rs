@@ -285,11 +285,17 @@ fn color_chain(saturation: Option<f64>, contrast: Option<f64>, brightness: Optio
     out
 }
 
-/// 字体路径进滤镜图必须转义:滤镜串里 `:` 分隔选项、`\` 是转义符,而 Windows 路径两样都占
-/// (`C:\\Windows\\Fonts\\arial.ttf` 原样插进去,ffmpeg 会把冒号当选项结束、把反斜杠吃掉)。
-/// 统一先换成斜杠再转义冒号 —— Linux/macOS 路径没有冒号,转完与原来一字不差。
+/// 字体路径进滤镜图:反斜杠换斜杠后用**单引号包住**。
+/// 滤镜串里 `:` 是选项分隔符、`\` 是转义符,Windows 路径两样都占;转义写法(`C\:/...`)在
+/// Windows CI 上仍报 `Invalid argument`,而引号是滤镜解析器明确支持的引用方式 —— 引起来之后
+/// 里面的冒号与反斜杠都不必再转。路径自己含单引号时(极少见)退回转义写法,免得引号提前闭合。
 fn esc_font(p: &str) -> String {
-    p.replace('\\', "/").replace(':', "\\:")
+    let p = p.replace('\\', "/");
+    if p.contains('\'') {
+        p.replace(':', "\\:")
+    } else {
+        format!("'{p}'")
+    }
 }
 
 fn timestamp_chains(format: &str, rec_badge: bool, font: &str) -> Vec<String> {
@@ -1584,16 +1590,15 @@ mod tests {
     /// 未转义时整条 drawtext 是坏的 —— 带时间戳的预设(监控/RMVB)在那一端直接跑失败。
     #[test]
     fn font_path_is_escaped_for_the_filter_graph() {
-        // Windows 形状:反斜杠变斜杠,盘符冒号被转义
-        assert_eq!(
-            esc_font(r"C:\Windows\Fonts\arial.ttf"),
-            "C\\:/Windows/Fonts/arial.ttf"
-        );
-        // Unix 形状:一字不动(没有冒号也没有反斜杠)
+        // Windows 形状:反斜杠变斜杠,整个路径用单引号包住(冒号不必再转)
+        assert_eq!(esc_font(r"C:\Windows\Fonts\arial.ttf"), "'C:/Windows/Fonts/arial.ttf'");
+        // Unix 形状:也加引号,内容与原来一致
         assert_eq!(
             esc_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+            "'/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'"
         );
+        // 路径里有单引号时退回转义写法(否则引号会提前闭合)
+        assert_eq!(esc_font("C:\\a'b\\arial.ttf"), "C\\:/a'b/arial.ttf");
         // 真走一遍带 overlay_timestamp 的预设,看落到滤镜串里的样子
         let p = load("cctv2000");
         let plan = build_plan(&p, &hd(), None, Some(r"C:\Windows\Fonts\arial.ttf")).unwrap();
@@ -1604,7 +1609,10 @@ mod tests {
             .collect();
         assert!(!dt.is_empty(), "cctv2000 该有 drawtext");
         for v in &dt {
-            assert!(v.contains("fontfile=C\\:/Windows/Fonts/arial.ttf:"), "字体没转义: {v}");
+            assert!(
+                v.contains("fontfile='C:/Windows/Fonts/arial.ttf':"),
+                "字体没按滤镜语法引起来: {v}"
+            );
         }
     }
 
