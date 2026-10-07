@@ -3,6 +3,7 @@
 # 用法: bash scripts/regression.sh   (需先 cargo build --release core)
 set -uo pipefail
 cd "$(dirname "$0")/.."
+. "$(dirname "$0")/portable.sh"   # fsize / md5of / md5pipe —— 三端工具差异收在这层
 
 ROOT=$PWD
 # 跨平台:Windows(MSYS/MinGW)下二进制带 .exe
@@ -35,13 +36,22 @@ have_output() { # tag -> any non-dot mp4 newer marker
   ls "$OUT"/*"$1"*.mp4 2>/dev/null | grep -qv '^\.tmp' && test -n "$(ls "$OUT" | grep -v '^\.')"; }
 
 echo "=== 1. 内置预设($(ls "$ROOT"/presets/*.json | wc -l) 个预设文件) ==="
+# 为什么没出图:引擎的 error 事件是第一手,没有它才取日志尾巴。补这一条是因为 macOS CI 上
+# 9 个预设齐报"输出过小/缺失",而判据没把引擎原话带出来 —— 一次 CI 轮次就这么白跑了。
+why_failed() { # tag
+  local lg="$OUT/log_$1.txt" e
+  e=$(grep -o '"type":"error".*' "$lg" 2>/dev/null | tail -1)
+  if [ -n "$e" ]; then printf '%s' "$e" | cut -c1-220; else tail -c 220 "$lg" 2>/dev/null | tr '\n' ' '; fi
+}
 for P in "$ROOT"/presets/*.json; do
   id=$(basename "$P" .json)
   if run_preset "$P" "$id" && grep -q '"type":"done"' "$OUT/log_$id.txt"; then
     f=$(grep -o '"output":"[^"]*"' "$OUT/log_$id.txt" | head -1 | cut -d'"' -f4)
-    if [ -s "$f" ] && [ "$(stat -c%s "$f")" -gt 1000 ]; then ok "preset $id"; else bad "preset $id" "输出过小/缺失"; fi
+    if [ -s "$f" ] && [ "$(fsize "$f")" -gt 1000 ]; then ok "preset $id"; else
+      bad "preset $id" "输出过小/缺失($f;$(why_failed "$id"))"
+    fi
   else
-    bad "preset $id" "$(tail -c 200 "$OUT/log_$id.txt" | tr '\n' ' ')"
+    bad "preset $id" "$(why_failed "$id")"
   fi
 done
 
@@ -58,8 +68,8 @@ done
 echo "=== 3. 强度乘子(文件名/大小单调) ==="
 "$BIN" run --preset "$ROOT/presets/cctv2000.json" --input "$FIX" --out-dir "$OUT/i05" --preview-secs 3 --intensity 0.5 >/dev/null 2>&1
 "$BIN" run --preset "$ROOT/presets/cctv2000.json" --input "$FIX" --out-dir "$OUT/i20" --preview-secs 3 --intensity 2.0 >/dev/null 2>&1
-S05=$(find "$OUT/i05" -name '*.mp4' -printf '%s' | head -1)
-S20=$(find "$OUT/i20" -name '*.mp4' -printf '%s' | head -1)
+S05=$(fsize "$(find "$OUT/i05" -name '*.mp4' | head -1)")
+S20=$(fsize "$(find "$OUT/i20" -name '*.mp4' | head -1)")
 if [ -n "$S05" ] && [ -n "$S20" ] && [ "$S20" -gt "$S05" ]; then
   ok "intensity 单调 (0.5x=${S05}B < 2.0x=${S20}B)"
 else
@@ -423,11 +433,11 @@ FC_DEF=$(fc-match -f '%{file}' Sans 2>/dev/null | tail -1)
 # 拿 DejaVu 试的时候,坏写法照样"通过",就是因为兜底就是同一个字体。
 SRC_FONT=""
 if [ -f "${FC_DEF:-}" ]; then
-  DEF_MD5=$(md5sum "$FC_DEF" | cut -c1-32)
+  DEF_MD5=$(md5of "$FC_DEF")
   for f in /usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf \
            /usr/share/fonts/truetype/*/*.ttf /usr/share/fonts/*/*/*.ttf; do
     [ -f "$f" ] || continue
-    [ "$(md5sum "$f" | cut -c1-32)" != "$DEF_MD5" ] || continue
+    [ "$(md5of "$f")" != "$DEF_MD5" ] || continue
     SRC_FONT=$f
     break
   done
@@ -444,7 +454,7 @@ stamp_md5() { # $1=标签 $2=字体路径 $3=时间戳文本(固定文字,免得
     --out-dir "$d" --t 1 --override "overlay_timestamp.format=$3" >"$d/log" 2>&1 || return 1
   fr=$(ls "$d"/*cctv2000*.png 2>/dev/null | grep -v '_src\.png$' | head -1)
   [ -n "$fr" ] || return 1
-  md5sum "$fr" | cut -c1-32
+  md5of "$fr"
 }
 if [ "$FONT_OK" = "1" ]; then
   SMP=$(stamp_md5 plain "$FDIR/f.ttf" STATIC)

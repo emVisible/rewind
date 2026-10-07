@@ -143,7 +143,7 @@ are not meaningful.
 | `axis_check.sh` | frame-rate and aspect axes, quantitative | assertions |
 | `preset_gallery.sh --check` | four gallery assets per preset | 11 presets |
 | `i18n_check.js` | zh/en key parity, English text for every engine string, error codes decodable both ways | 25 |
-| `release_check.sh` | licence, notices, version parity, assets in the index, gate and CI completeness, README completeness, repo hygiene | 94 |
+| `release_check.sh` | licence, notices, version parity, assets in the index, gate and CI completeness, README completeness, repo hygiene, BSD/GNU tool-portability of the gates | 96 |
 
 Three levels of liveness, because a control can break at any of them: the value does not reach
 the plan, the plan does not change the pixels, or the change is audio-only and frame hashes

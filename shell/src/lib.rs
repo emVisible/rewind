@@ -144,7 +144,14 @@ fn workspace_root() -> Result<PathBuf, String> {
 /// `Command::new(&paths.core)`,于是**装态机器上(ffmpeg 只在 app/engines/、不在 PATH 上)
 /// 这些通道一律报 "program not found"**。Linux 开发机看不出来,因为系统装了 ffmpeg。
 fn core_cmd(paths: &EnginePaths) -> Command {
-    let mut cmd = Command::new(&paths.core);
+    engine_cmd(paths, &paths.core)
+}
+
+/// 起一个"跟着引擎走的二进制"(rewind-core,或 engines/ 里的 ffprobe):环境装配只有一处。
+/// 装态机器上 ffmpeg/ffprobe 只躺在 `app/engines/`、不在 PATH 上,所以任何自己 `Command::new`
+/// 的一份都注定在 Windows/macOS 的发行版上 "program not found"(Linux 开发机看不出来)。
+fn engine_cmd(paths: &EnginePaths, prog: &Path) -> Command {
+    let mut cmd = Command::new(prog);
     paths.apply_env(&mut cmd);
     #[cfg(windows)]
     {
@@ -153,6 +160,11 @@ fn core_cmd(paths: &EnginePaths) -> Command {
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
     cmd
+}
+
+/// 校验成品用的 ffprobe(与引擎同一个 PATH 来源)
+fn ffprobe_cmd(paths: &EnginePaths) -> Command {
+    engine_cmd(paths, Path::new("ffprobe"))
 }
 
 /// 一次 rewind-core 运行,逐行回调 NDJSON 事件;cancel 标志置位后杀进程树
@@ -696,7 +708,11 @@ mod tests {
     #[test]
     fn shell_failures_always_carry_a_code() {
         let src = include_str!("lib.rs");
-        let src = src.split("#[cfg(test)]").next().unwrap_or(""); // 测试自己的字面量不算
+        // 边界必须按 `mod tests` 切,不能按第一个 `#[cfg(test)]` 切:文件顶部那份码表镜像也是
+        // #[cfg(test)],拿它当边界会把判据缩成"只扫前 23 行"(实测:25 条含汉字的字面量一条都看不见,
+        // 于是这条闸绿着蒙人)。测试自己的中文不算站点,所以要排除测试模块。
+        let end = src.lines().position(|l| l.trim().starts_with("mod tests")).unwrap_or(usize::MAX);
+        let src: String = src.lines().take(end).collect::<Vec<_>>().join("\n");
         let allowed = ["创建配置目录失败", "写设置失败", "设置改名失败"];
         let mut bare = vec![];
         for (i, raw) in src.lines().enumerate() {
@@ -857,21 +873,31 @@ mod tests {
         let _ = std::fs::remove_dir_all(&out_dir);
     }
 
-    /// 拉引擎的站点必须只有一个入口(`core_cmd`)。多出来的一份一定漏了 `apply_env` ——
-    /// 装态机器上 ffmpeg 只在 `app/engines/`,漏一次就是一条 "program not found"。
-    /// Windows CI 上真炸过:`probe_file` 漏了,于是"试试示例素材"那条通道只有 Linux 能跑。
+    /// 起子进程只许一个入口:`engine_cmd` 是唯一直接 `Command::new` 的地方,
+    /// `core_cmd` / `ffprobe_cmd` 都从它出发。多出来的一份一定漏了 `apply_env` ——
+    /// 装态机器上 ffmpeg/ffprobe 只在 `app/engines/`、不在 PATH 上,漏一次就是一条
+    /// "program not found"。Windows CI 上为这个炸过两回:`probe_file` 漏了 apply_env
+    /// (于是"试试示例素材"只有 Linux 能跑),以及测试自己裸起 ffprobe 报 program not found。
     #[test]
     fn every_core_spawn_goes_through_core_cmd() {
         let src = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/lib.rs")).unwrap();
-        // 拼出来的字面量:写死的话,这一行自己就含那个串,扫源文件时会把自己算成一个站点
-        let needle = ["Command::new(", "&paths.", "core", ")"].concat();
-        let direct = src
-            .lines()
-            .filter(|l| l.contains(&needle) && !l.trim_start().starts_with("///"))
-            .count();
-        assert_eq!(direct, 1, "直接 spawn 引擎的站点应只剩 core_cmd 里那一处,现在 {direct} 处");
+        // 产品代码 = `mod tests` 之前的部分。边界必须按 mod tests 找,不能按 #[cfg(test)] 找:
+        // 文件里第一个 #[cfg(test)] 是顶部那份码表镜像,拿它切会把判据缩成"只扫前 24 行"。
+        let end = src.lines().position(|l| l.trim().starts_with("mod tests")).unwrap_or(usize::MAX);
+        let prod: Vec<&str> = src.lines().take(end).collect();
+        let needle = ["Command::", "new("].concat(); // 拼出来,免得这一行自己算一个站点
+        let sites: Vec<String> = prod
+            .iter()
+            .map(|l| l.trim())
+            .filter(|l| !l.starts_with("///") && !l.starts_with("//"))
+            .filter(|l| l.contains(&needle))
+            .map(|l| l.to_string())
+            .collect();
+        assert_eq!(sites.len(), 1, "产品代码里起子进程应只有一个入口(engine_cmd),现在这些站点裸 new: {sites:?}");
+        assert!(sites[0].contains("Command::new(prog)"), "唯一那处该是 engine_cmd 的入参,实际是: {}", sites[0]);
         let via = src.lines().filter(|l| l.contains("core_cmd(paths)")).count();
         assert!(via >= 8, "走 core_cmd 的通道少于 8 处(现在 {via}):新加的调用忘了走它?");
+        assert!(src.lines().any(|l| l.contains("ffprobe_cmd(&paths)")), "ffprobe_cmd 没被用上?校验成品那条测试绕过它了");
     }
 
     /// 引擎失败的**原因**必须传到调用方。此前这里只报 "rewind-core 退出码 Some(1)",
@@ -978,7 +1004,7 @@ mod tests {
             &cancel,
         );
         let out = r[0].as_ref().unwrap_or_else(|e| panic!("覆盖跑失败: {e}"));
-        let probe = Command::new("ffprobe")
+        let probe = ffprobe_cmd(&paths)
             .args(["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=nb_frames,avg_frame_rate,color_range", "-of", "csv=p=0"])
             .arg(out)
             .output()

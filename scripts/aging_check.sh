@@ -4,6 +4,7 @@
 # 用法: bash scripts/aging_check.sh   (需先 cargo build --release core)
 set -uo pipefail
 cd "$(dirname "$0")/.."
+. "$(dirname "$0")/portable.sh"   # fsize / md5of / md5pipe —— 三端工具差异收在这层
 
 BIN=core/target/release/rewind-core
 [ -x "$BIN" ] || BIN=core/target/release/rewind-core.exe
@@ -96,7 +97,7 @@ rm -rf "$OUT/d1" "$OUT/d2"; mkdir -p "$OUT/d1" "$OUT/d2"
 "$BIN" run --preset presets/film1970.json --input "$FIX" --out-dir "$OUT/d1" --override "preset.aging=4" >/dev/null 2>&1
 "$BIN" run --preset presets/film1970.json --input "$FIX" --out-dir "$OUT/d2" --override "preset.aging=4" >/dev/null 2>&1
 # 注意:mp4 容器写有 creation_time,字节级 cmp 必然不等 —— 这里比的是**像素**是否可复现
-frame_md5() { ffmpeg -v error -i "$1" -frames:v 1 -f image2pipe -vcodec png - 2>/dev/null | md5sum | cut -d' ' -f1; }
+frame_md5() { ffmpeg -v error -i "$1" -frames:v 1 -f image2pipe -vcodec png - 2>/dev/null | md5pipe; }
 H1=$(frame_md5 "$(ls "$OUT/d1"/*.mp4 | head -1)")
 H2=$(frame_md5 "$(ls "$OUT/d2"/*.mp4 | head -1)")
 if [ -n "$H1" ] && [ "$H1" = "$H2" ]; then ok "同参数两次跑像素相同(种子驱动可复现)"; else bad "同参数两次跑像素相同" "$H1 vs $H2"; fi

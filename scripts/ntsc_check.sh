@@ -10,6 +10,7 @@
 # 用法: bash scripts/ntsc_check.sh
 set -uo pipefail
 cd "$(dirname "$0")/.."
+. "$(dirname "$0")/portable.sh"   # fsize / md5of / md5pipe —— 三端工具差异收在这层
 ROOT=$PWD
 BIN=$ROOT/core/target/release/rewind-core
 [ -x "$BIN" ] || BIN=$ROOT/core/target/release/rewind-core.exe
@@ -35,7 +36,7 @@ shot() {  # shot <名字> [override...]  → 打印成品帧 md5
   local f
   f=$(ls "$dir"/*ntscrs*.png 2>/dev/null | head -1)
   [ -n "$f" ] || { echo ""; return 1; }
-  md5sum "$f" | awk '{print $1}'
+  md5of "$f"
 }
 
 PRESET=$ROOT/presets/vhs1990_ntscrs.json

@@ -5,6 +5,7 @@
 # 用法: bash scripts/geo_check.sh
 set -u
 cd "$(dirname "$0")/.."
+. "$(dirname "$0")/portable.sh"   # fsize / md5of / md5pipe —— 三端工具差异收在这层
 BIN=${BIN:-core/target/release/rewind-core}
 SRC=${SRC:-assets/sample/street-food.mp4}
 IMG=${IMG:-assets/sample/street-food.png}
@@ -27,7 +28,7 @@ planof() { "$BIN" plan --preset "$1" --input "$2" 2>/dev/null | grep '^{' | tail
 jget() { python3 -c "import json,sys;d=json.loads(sys.stdin.read() or '{}');print(d$1)" 2>/dev/null; }
 
 SW=$(dim "$SRC")
-SRC_MD5=$(ffmpeg -hide_banner -loglevel error -y -ss 3 -i "$SRC" -frames:v 1 "$WORK/plain.png" && md5sum "$WORK/plain.png" | cut -d' ' -f1)
+SRC_MD5=$(ffmpeg -hide_banner -loglevel error -y -ss 3 -i "$SRC" -frames:v 1 "$WORK/plain.png" && md5of "$WORK/plain.png")
 [ -n "$SRC_MD5" ] || { echo "FATAL  取不到对照原帧"; exit 2; }
 # 量具自检:净几何恒等的那几个预设必须真的进入第 3 条断言,否则它就是一条恒真的绿
 [ "${SW#*x}" != "$SW" ] || { echo "FATAL  源尺寸解析成了「$SW」,不是 WxH —— 第 3 条断言会空转"; exit 2; }
@@ -68,7 +69,7 @@ d = json.load(sys.stdin)
 print('y' if any(f.startswith(('crop=', 'pad=')) for f in d.get('geom', [])) else 'n')" 2>/dev/null)
   if [ "$o_w" = "${SW%x*}" ] && [ "$o_h" = "${SW#*x}" ] && [ -z "$dar" ] && [ "$crops" = "n" ]; then
     PRISTINE_SEEN=$((PRISTINE_SEEN + 1))
-    if [ "$(md5sum "$s" | cut -d' ' -f1)" != "$SRC_MD5" ]; then
+    if [ "$(md5of "$s")" != "$SRC_MD5" ]; then
       bad "$id 原帧未被重采样" "净几何恒等却还是被链过了一遍"
     else
       ok "$id 原帧未被重采样"
@@ -159,7 +160,7 @@ if [ -f "$BIG" ]; then
   bs=$(printf '%s' "$bj" | jget "['source']"); br=$(printf '%s' "$bj" | jget "['result']")
   bpw=$(printf '%s' "$bj" | jget "['out'].get('preview_w') or 0")
   bdims=$(dim "$bs"); bddims=$(dim "$br")
-  bbytes=$(( $(stat -c%s "$bs" 2>/dev/null || echo 0) + $(stat -c%s "$br" 2>/dev/null || echo 0) ))
+  bbytes=$(( $(fsize "$bs") + $(fsize "$br") ))
   if [ "$bdims" != "$bddims" ]; then
     bad "大图预览两层仍同几何(代理后)" "src=$bdims result=$bddims"
   else

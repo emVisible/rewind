@@ -19,9 +19,22 @@
 enum 的取值不硬编:逐个相邻选项配对试,取第一对**两边都出图**的(容器/编码器之间有相容性,
 mp4↔avi↔3gp 不保证两两能跑;拿不相容的一对报"失败"是闸在骗人)。
 """
-import json, os, subprocess, sys
+import hashlib, json, os, subprocess, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def md5_of(path):
+    """文件 md5。**不调 md5sum**:那是 GNU coreutils 的东西,macOS 上没有,
+    而这条闸的比较对象就是哈希 —— 取不到哈希时必须算失败,不能算"两边一样"。"""
+    try:
+        h = hashlib.md5()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except OSError:
+        return None
 BIN = os.path.join(ROOT, "core/target/release/rewind-core")
 if not os.path.exists(BIN):
     BIN = BIN + ".exe"
@@ -75,9 +88,9 @@ def run(preset, overrides, name, t):
             continue
         for f in sorted(os.listdir(d)):
             if f.endswith(".png") and "_src" not in f:
-                h = subprocess.run(["md5sum", os.path.join(d, f)], capture_output=True, text=True)
-                if h.returncode == 0:
-                    return h.stdout.split()[0], None
+                h = md5_of(os.path.join(d, f))
+                if h:
+                    return h, None
         last_err = "跑通了但没落图片"
     return None, last_err
 
@@ -129,10 +142,10 @@ def run_frame(preset, ov, name):
                        capture_output=True, text=True)
     if a.returncode != 0 or not os.path.exists(png):
         return None, "成品里取不到帧(%.2fs):%s" % (mid, " ".join(a.stderr.split())[:110])
-    h = subprocess.run(["md5sum", png], capture_output=True, text=True)
-    if h.returncode != 0:
+    h = md5_of(png)
+    if not h:
         return None, "md5 失败"
-    return h.stdout.split()[0], None
+    return h, None
 
 
 def deterministic(preset, t):

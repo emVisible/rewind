@@ -50,53 +50,67 @@ jobs:
         working-directory: shell
         run: bash ../scripts/ci_step.sh cargo test --release
       - name: E2E regression gate (95 项)
+        if: always()          # 一条闸红不许把后面的闸一起 skip 掉(一轮要看到全部坑)
         shell: bash
         run: |
           export PATH="$GITHUB_WORKSPACE/engines:$PATH"
           bash scripts/ci_step.sh scripts/regression.sh
       - name: Parameter-axis gate (帧率/画幅可机读断言)
+        if: always()          # 一条闸红不许把后面的闸一起 skip 掉(一轮要看到全部坑)
         shell: bash
         run: |
           export PATH="$GITHUB_WORKSPACE/engines:$PATH"
           bash scripts/ci_step.sh scripts/axis_check.sh
       - name: Aging-factor gate (做旧系数:单调/画幅恒定/爆炸档相变/确定性)
+        if: always()          # 一条闸红不许把后面的闸一起 skip 掉(一轮要看到全部坑)
         shell: bash
         run: |
           export PATH="$GITHUB_WORKSPACE/engines:$PATH"
           bash scripts/ci_step.sh scripts/aging_check.sh
       - name: Preset variance gate (预设差异度:结构 + 色距/高频/块度)
+        if: always()          # 一条闸红不许把后面的闸一起 skip 掉(一轮要看到全部坑)
         shell: bash
         run: bash scripts/ci_step.sh scripts/preset_variance.sh
       - name: Concurrency gate (并发预览/抽帧/成跑互不踩临时文件与成品名)
+        if: always()          # 一条闸红不许把后面的闸一起 skip 掉(一轮要看到全部坑)
         shell: bash
         run: |
           export PATH="$GITHUB_WORKSPACE/engines:$PATH"
           bash scripts/ci_step.sh scripts/conc_check.sh
       - name: Geometry gate (对比预览两层同几何 + 图片交付把 DAR 烘进像素)
+        if: always()          # 一条闸红不许把后面的闸一起 skip 掉(一轮要看到全部坑)
         shell: bash
         run: bash scripts/ci_step.sh scripts/geo_check.sh
       - name: Parameter boundary gate (参数边界:倒挂范围 / 说人话的拒绝 / 合法极值仍可跑)
+        if: always()          # 一条闸红不许把后面的闸一起 skip 掉(一轮要看到全部坑)
         shell: bash
         run: bash scripts/ci_step.sh scripts/safe_max.sh
       - name: NTSC signal-knob gate (12 个信号旋钮:默认零变化 / 逐个真改画面 / 越界带码)
+        if: always()          # 一条闸红不许把后面的闸一起 skip 掉(一轮要看到全部坑)
         shell: bash
         run: bash scripts/ci_step.sh scripts/ntsc_check.sh
       - name: Parameter liveness gate (75 个参数逐个证明"拧了会在计划里留痕",防死控件)
+        if: always()          # 一条闸红不许把后面的闸一起 skip 掉(一轮要看到全部坑)
         shell: bash
         run: bash scripts/ci_step.sh scripts/param_liveness.sh
       - name: Parameter pixels gate (每个视觉参数单独拧动必须改变成品帧;预览抽不到帧时退到成品帧)
+        if: always()          # 一条闸红不许把后面的闸一起 skip 掉(一轮要看到全部坑)
         shell: bash
         run: bash scripts/ci_step.sh scripts/param_pixels.sh
       - name: Parameter audio gate (每个音频参数单独拧动必须改变成品音轨)
+        if: always()          # 一条闸红不许把后面的闸一起 skip 掉(一轮要看到全部坑)
         shell: bash
         run: bash scripts/ci_step.sh scripts/param_audio.sh
       - name: i18n coverage gate (中英词典对齐 + 引擎字符串必须有英文对译)
+        if: always()          # 一条闸红不许把后面的闸一起 skip 掉(一轮要看到全部坑)
         shell: bash
         run: bash scripts/ci_step.sh node scripts/i18n_check.js
       - name: Release hygiene check (许可/声明/版本/画廊资产)
+        if: always()          # 一条闸红不许把后面的闸一起 skip 掉(一轮要看到全部坑)
         shell: bash
         run: bash scripts/ci_step.sh scripts/release_check.sh
       - name: Smoke era axis
+        if: always()          # 一条闸红不许把后面的闸一起 skip 掉(一轮要看到全部坑)
         shell: bash
         run: |
           exe=${{ matrix.os == 'windows-latest' && './core/target/release/rewind-core.exe' || './core/target/release/rewind-core' }}

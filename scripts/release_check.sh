@@ -3,6 +3,7 @@
 # 用法: bash scripts/release_check.sh
 set -uo pipefail
 cd "$(dirname "$0")/.."
+. "$(dirname "$0")/portable.sh"   # fsize / md5of / md5pipe —— 三端工具差异收在这层
 
 PASS=0; FAIL=0
 if [ -x core/target/release/rewind-core ]; then BIN=core/target/release/rewind-core; else BIN=core/target/release/rewind-core.exe; fi
@@ -302,7 +303,11 @@ done
 if [ -s app/Cargo.lock ]; then ok "锁文件在位(app 桌面壳)"; else
   echo "SKIP  app/Cargo.lock —— 本机 crates.io 解析不通(tauri 依赖树),由 CI 首次构建生成后入库;打 tag 前必须补上"
 fi
-BIG=$(lsf | xargs -I{} sh -c 'test -f "{}" && [ $(stat -c%s "{}" 2>/dev/null || stat -f%z "{}") -gt 4194304 ] && echo {}' 2>/dev/null | head -3)
+BIG=""
+while IFS= read -r f; do
+  [ -f "$f" ] || continue
+  [ "$(fsize "$f")" -gt 4194304 ] && BIG="$BIG $f"
+done < <(lsf)
 [ -z "$BIG" ] && ok "无 >4MB 文件入库" || bad "无 >4MB 文件入库" "$BIG"
 
 echo "=== 品牌与示例资产"
@@ -371,6 +376,21 @@ done
 [ -s scripts/param_pixels.py ] || GMISS="$GMISS param_pixels.py(像素活性台架)"
 [ -s scripts/param_audio.py ] || GMISS="$GMISS param_audio.py(音频活性台架)"
 [ -z "$GMISS" ] && ok "闸脚本齐全(回归/自检/画廊/量化/差异/做旧系数/并发/双语/画幅/边界/信号旋钮/参数活性/像素活性/音频活性)" || bad "闸脚本齐全" "缺:$GMISS"
+# 三端工具差异不许散落在各闸里:求文件摘要的 GNU 写法、按格式取文件大小的 GNU 写法、
+# 以及 GNU find 的打印选项,在 macOS 的 BSD 工具上**不报错、只给空值** —— 于是判据读成
+# "画面没变 / 输出过小缺失",报的是判据自己的故障(macOS CI 上 9 个预设齐红就是这么来的)。
+# 取哈希与大小一律走 scripts/portable.sh 的 fsize / md5of / md5pipe。
+N_MD5=$(printf '%s%s' "md5" "sum")                    # 拼出来:否则这条检查自己就算一处命中
+N_STAT=$(printf '%s%s' "stat " "-c%s")
+N_PRT=$(printf -- '-%s' "printf")
+GNUISH=$(grep -n -- "$N_MD5\\|$N_STAT\\|$N_PRT" scripts/*.sh 2>/dev/null | grep -v '^scripts/portable.sh:')
+[ -z "$GNUISH" ] && ok "闸脚本不直接用 GNU 独有工具(macOS 上会静默给空值)" \
+  || bad "闸脚本不直接用 GNU 独有工具" "$(printf '%s' "$GNUISH" | head -2 | tr '\n' ' ' | cut -c1-160)"
+PSRC=""
+for g in regression geo_check aging_check ntsc_check; do
+  grep -q 'portable.sh' "scripts/$g.sh" 2>/dev/null || PSRC="$PSRC $g.sh"
+done
+[ -z "$PSRC" ] && ok "用到哈希/大小的闸都挂了 portable.sh" || bad "用到哈希/大小的闸都挂了 portable.sh" "没引用:$PSRC"
 for g in aging_check.sh preset_variance.sh conc_check.sh i18n_check.js geo_check.sh safe_max.sh ntsc_check.sh param_liveness.sh param_pixels.sh param_audio.sh; do
   has .github/workflows/build.yml "scripts/$g" && ok "CI 接入 $g" || bad "CI 接入 $g" "build.yml 里没有这一步"
 done
