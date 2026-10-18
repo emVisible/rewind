@@ -2,6 +2,8 @@
 
 English: **[README.md](README.md)**
 
+产品落地页(纯静态,无需构建):**[site/](site/)** —— 中文说明见 [site/README_zh.md](site/README_zh.md)
+
 Rewind 把清晰的数字素材做成有年代感的低画质:家用录像带、CRT 电视、8mm 胶片、监控录像、
 翻录 DVD、字幕组 RMVB、手机 3GP、屏摄翻拍,以及反复转存之后的电子包浆。年代轴覆盖 1965–2026,
 任意年份都能编译成预设。

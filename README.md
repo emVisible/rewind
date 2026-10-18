@@ -2,6 +2,8 @@
 
 中文说明:**[README_zh.md](README_zh.md)**
 
+Landing page (static, no build): **[site/](site/)** — 中文说明见 [site/README_zh.md](site/README_zh.md)
+
 Rewind degrades video and images so they look like period media: VHS tape, CRT television,
 8 mm film, CCTV recording, dubbed DVD, fansub RMVB, 3GP phone video, screen re-photography, and
 the recompressed look of a picture that has been re-uploaded many times. An era axis covers

@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rewind — 本地视频做旧引擎 | Local video aging engine</title>
+<meta name="description" content="Rewind 把视频和图像处理成各年代的介质质感：VHS、CRT、8mm 胶片、监控、翻录 DVD、字幕组 RMVB、3GP、屏摄、电子包浆。年代轴 1965–2026，全程本地运行。Rewind degrades video and images into period media looks — VHS, CRT, 8mm film, CCTV, dubbed DVD, fansub RMVB, 3GP. Era axis 1965–2026. Runs fully offline.">
+<meta name="keywords" content="VHS effect, CRT filter, video aging, 视频做旧, 复古滤镜, 8mm film look, CCTV effect, RMVB, 电子包浆, local video processing, ffmpeg, Rust">
+<meta name="author" content="Rewind">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#0a0a0b">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Rewind — 把视频退回它不属于的年代">
+<meta property="og:description" content="本地运行的视频/图像做旧引擎。VHS · CRT · 8mm · 监控 · DVD · RMVB · 3GP · 屏摄 · 电子包浆。年代轴 1965–2026。MIT。">
+<meta property="og:image" content="assets/patina_hero.webp">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:locale:alternate" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Rewind — local video aging engine">
+<meta name="twitter:description" content="Degrade video and images into period media: VHS, CRT, 8mm film, CCTV, dubbed DVD, RMVB, 3GP. Era axis 1965–2026. Fully local. MIT.">
+<meta name="twitter:image" content="assets/patina_hero.webp">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>◀◀</text></svg>">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Rewind",
+  "applicationCategory": "MultimediaApplication",
+  "operatingSystem": "macOS, Windows, Linux",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "license": "https://opensource.org/licenses/MIT",
+  "description": "Rewind degrades video and images so they look like period media: VHS tape, CRT television, 8mm film, CCTV recording, dubbed DVD, fansub RMVB, 3GP phone video, screen re-photography. An era axis covers 1965–2026. Everything runs locally: no upload, no account, no telemetry.",
+  "programmingLanguage": "Rust"
+}
+</script>
+<style>
+:root{
+  --bg:#0a0a0b; --bg2:#111113; --line:#222226;
+  --tx:#e8e6e1; --dim:#8a877f; --acc:#ff5c1a; --acc2:#ffd23f;
+  --mono:"SF Mono",ui-monospace,"Cascadia Code",Menlo,Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--tx);font-family:-apple-system,"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;line-height:1.6;overflow-x:hidden}
+::selection{background:var(--acc);color:#000}
+.scan{position:fixed;inset:0;pointer-events:none;z-index:99;
+  background:repeating-linear-gradient(0deg,transparent 0 2px,rgba(0,0,0,.14) 2px 4px);
+  mix-blend-mode:multiply}
+.vig{position:fixed;inset:0;pointer-events:none;z-index:98;
+  background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.5) 100%)}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+.mono{font-family:var(--mono)}
+a{color:inherit}
+nav{position:fixed;top:0;left:0;right:0;z-index:100;backdrop-filter:blur(12px);
+  background:rgba(10,10,11,.7);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:56px}
+.logo{font-family:var(--mono);font-weight:700;font-size:17px;letter-spacing:-.5px}
+.logo b{color:var(--acc)}
+nav .links{display:flex;gap:26px;font-size:13px;color:var(--dim)}
+nav .links a{text-decoration:none;transition:color .2s}
+nav .links a:hover{color:var(--tx)}
+.nav-r{display:flex;gap:12px;align-items:center}
+.gh,.lang{border:1px solid var(--line);padding:5px 14px;border-radius:99px;font-size:12.5px;
+  text-decoration:none;color:var(--tx);transition:border-color .2s;background:none;cursor:pointer;font-family:inherit}
+.gh:hover,.lang:hover{border-color:var(--acc)}
+.lang{font-family:var(--mono);min-width:58px}
+@media(max-width:640px){nav .links{display:none}}
+.hero{min-height:100svh;display:flex;flex-direction:column;justify-content:center;
+  position:relative;padding:120px 0 60px}
+.hero-bg{position:absolute;inset:0;overflow:hidden;opacity:.22}
+.hero-bg video{width:100%;height:100%;object-fit:cover;filter:saturate(1.2)}
+.hero-bg::after{content:"";position:absolute;inset:0;
+  background:linear-gradient(180deg,rgba(10,10,11,.4),rgba(10,10,11,.95) 85%)}
+.hero .wrap{position:relative;z-index:2}
+.tag{font-family:var(--mono);font-size:12px;color:var(--acc);letter-spacing:2px;
+  text-transform:uppercase;margin-bottom:22px;display:flex;align-items:center;gap:10px}
+.tag::before{content:"";width:8px;height:8px;background:var(--acc);border-radius:50%;
+  animation:blink 1.6s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.15}}
+h1{font-size:clamp(38px,6.5vw,76px);font-weight:800;letter-spacing:-2.5px;line-height:1.08;margin-bottom:26px}
+h1 em{font-style:normal;color:var(--acc)}
+.hero p.sub{max-width:600px;color:var(--dim);font-size:16.5px;margin-bottom:38px}
+.hero p.sub b{color:var(--tx);font-weight:600}
+.cta{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.btn{font-family:var(--mono);font-size:13.5px;padding:13px 26px;border-radius:6px;
+  text-decoration:none;transition:all .2s;display:inline-flex;align-items:center;gap:8px}
+.btn-p{background:var(--acc);color:#000;font-weight:700}
+.btn-p:hover{background:var(--acc2)}
+.btn-s{border:1px solid var(--line);color:var(--tx)}
+.btn-s:hover{border-color:var(--acc)}
+.hero-facts{display:flex;gap:36px;margin-top:64px;flex-wrap:wrap}
+.hfact{font-family:var(--mono)}
+.hfact .n{font-size:26px;font-weight:700;color:var(--acc2)}
+.hfact .l{font-size:11.5px;color:var(--dim);letter-spacing:1px;margin-top:2px}
+section{padding:90px 0}
+.sec-h{font-family:var(--mono);font-size:12px;color:var(--acc);letter-spacing:2.5px;margin-bottom:14px}
+h2{font-size:clamp(26px,4vw,42px);font-weight:800;letter-spacing:-1.5px;line-height:1.15;margin-bottom:16px}
+.sec-d{color:var(--dim);max-width:640px;font-size:15px;margin-bottom:48px}
+.sec-d code{font-family:var(--mono);font-size:13px;color:var(--acc2)}
+.axis{position:relative;height:2px;background:var(--line);margin:70px 0 30px}
+.axis .yr{position:absolute;top:-34px;transform:translateX(-50%);font-family:var(--mono);
+  font-size:12px;color:var(--dim);transition:color .3s}
+.axis .yr.on{color:var(--acc);font-weight:700}
+.axis .yr i{display:block;width:1px;height:12px;background:currentColor;margin:6px auto 0;font-style:normal}
+.axis .dot{position:absolute;top:-5px;left:0;width:12px;height:12px;border-radius:50%;
+  background:var(--acc);box-shadow:0 0 16px var(--acc);transition:left .5s cubic-bezier(.6,0,.2,1);
+  transform:translateX(-50%)}
+input[type=range].era{-webkit-appearance:none;width:100%;background:transparent;margin-top:24px}
+input[type=range].era::-webkit-slider-runnable-track{height:44px;background:transparent;cursor:pointer}
+input[type=range].era::-webkit-slider-thumb{-webkit-appearance:none;width:44px;height:44px;margin-top:0;background:transparent;cursor:grab}
+.era-read{font-family:var(--mono);margin-top:6px;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;min-height:60px}
+.era-read .big{font-size:52px;font-weight:700;color:var(--acc);letter-spacing:-2px;line-height:1}
+.era-read .what{color:var(--dim);font-size:14px;max-width:560px}
+.era-read .what b{color:var(--tx)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:22px}
+.card{background:var(--bg2);border:1px solid var(--line);border-radius:10px;overflow:hidden;
+  transition:border-color .25s,transform .25s;cursor:pointer}
+.card:hover{border-color:var(--acc);transform:translateY(-3px)}
+.card .media{position:relative;aspect-ratio:16/9;background:#000;overflow:hidden}
+.card .media img,.card .media video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.card .media video{opacity:0;transition:opacity .35s}
+.card:hover .media video{opacity:1}
+.card .media .live{position:absolute;top:10px;right:10px;font-family:var(--mono);font-size:10px;
+  letter-spacing:1.5px;color:#000;background:var(--acc2);padding:3px 8px;border-radius:3px;
+  opacity:0;transition:opacity .3s}
+.card:hover .media .live{opacity:1}
+.card .body{padding:16px 18px 18px}
+.card .yr2{font-family:var(--mono);font-size:11.5px;color:var(--acc);letter-spacing:1.5px}
+.card h3{font-size:17px;font-weight:700;margin:4px 0 6px;letter-spacing:-.3px}
+.card .en{font-family:var(--mono);font-size:11px;color:var(--dim);font-weight:400;margin-left:8px}
+.card p{font-size:13px;color:var(--dim);line-height:1.55}
+.card .cmd{margin-top:12px;font-family:var(--mono);font-size:11px;color:#6a675f;
+  background:#000;padding:8px 10px;border-radius:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .cmd b{color:var(--acc2);font-weight:400}
+.terminal{background:#0d0d0f;border:1px solid var(--line);border-radius:12px;overflow:hidden;
+  box-shadow:0 30px 80px rgba(0,0,0,.5)}
+.t-bar{display:flex;gap:7px;padding:13px 16px;border-bottom:1px solid var(--line)}
+.t-bar i{width:11px;height:11px;border-radius:50%;background:#2c2c2f}
+.t-bar i:nth-child(1){background:#ff5f57}.t-bar i:nth-child(2){background:#febc2e}.t-bar i:nth-child(3){background:#28c840}
+.t-body{padding:22px 24px;font-family:var(--mono);font-size:13px;line-height:2.05;overflow-x:auto}
+.t-body .p{color:var(--acc)}.t-body .c{color:#5a574f}.t-body .o{color:#6f8f6f}.t-body .y{color:var(--acc2)}
+.bordered{border-top:1px solid var(--line)}
+table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:13px}
+th{text-align:left;color:var(--dim);font-weight:400;font-size:11.5px;letter-spacing:1.5px;
+  padding:0 14px 12px 0;border-bottom:1px solid var(--line)}
+td{padding:13px 14px 13px 0;border-bottom:1px solid #1a1a1d}
+tr:hover td{background:rgba(255,92,26,.04)}
+td:first-child{color:var(--tx)}
+td .fp{color:#4ec9b0;font-size:11px}
+td .pp{color:var(--acc2);font-size:11px}
+.note{font-size:12.5px;color:var(--dim);margin-top:16px;font-family:var(--mono)}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.fact{background:var(--bg);padding:28px 26px}
+.fact .k{font-family:var(--mono);font-size:22px;margin-bottom:12px;color:var(--acc)}
+.fact h4{font-size:15px;margin-bottom:8px}
+.fact p{font-size:13px;color:var(--dim);line-height:1.6}
+.fact code{font-family:var(--mono);font-size:11.5px;color:var(--acc2)}
+.provbox{border:1px solid var(--acc);border-radius:10px;padding:26px 30px;background:rgba(255,92,26,.05)}
+.provbox h3{font-size:16px;margin-bottom:10px}
+.provbox code{display:block;font-family:var(--mono);font-size:12.5px;color:var(--dim);
+  background:#000;padding:14px 16px;border-radius:6px;margin-top:12px;overflow-x:auto;white-space:nowrap}
+.provbox p{font-size:13.5px;color:var(--dim)}
+footer{padding:50px 0 60px;border-top:1px solid var(--line);color:var(--dim);font-size:13px}
+footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;align-items:center}
+footer .mono{font-size:11.5px}
+</style>
+</head>
+<body>
+<div class="scan"></div><div class="vig"></div>
+
+<nav>
+  <div class="wrap">
+    <div class="logo">◀◀ <b>REWIND</b></div>
+    <div class="links">
+      <a href="#axis" data-en="Era axis">年代轴</a>
+      <a href="#presets" data-en="Presets">预设</a>
+      <a href="#cli" data-en="CLI">CLI</a>
+      <a href="#perf" data-en="Benchmarks">性能</a>
+      <a href="#facts" data-en="Facts">事实</a>
+    </div>
+    <div class="nav-r">
+      <button class="lang" id="langBtn" aria-label="Switch language">EN</button>
+      <a class="gh" href="https://github.com" target="_blank" rel="noopener">GitHub ↗</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="hero-bg"><video autoplay muted loop playsinline src="assets/vhs1990_ntscrs.webm"></video></div>
+  <div class="wrap">
+    <div class="tag" data-en="REC · LOCAL MEDIA AGING ENGINE">REC · 本地媒体做旧引擎</div>
+    <h1 data-en='Make video look like<br><em>a year it never</em> lived in.'>把视频退回<br><em>它不属于</em>的年代。</h1>
+    <p class="sub" data-en='Rewind degrades video and images into period media: <b>VHS, CRT, 8mm film, CCTV, dubbed DVD, fansub RMVB, 3GP phone, screen re-photography, digital patina</b>. The era axis covers 1965–2026 and compiles a preset for any year. Everything runs locally — no upload, no account, no telemetry.'>Rewind 把视频和图像处理成各年代的介质质感：<b>VHS 录像带、CRT 电视、8mm 胶片、监控录像、翻录 DVD、字幕组 RMVB、3GP 手机、屏摄翻拍、电子包浆</b>。年代轴覆盖 1965–2026，任意年份都能编译成预设。全程本地运行：不上传，无账号，无遥测。</p>
+    <div class="cta">
+      <a class="btn btn-p" href="#cli" data-en="./webui.sh → running in 3 min">./webui.sh → 三分钟跑起来</a>
+      <a class="btn btn-s" href="#presets" data-en="11 presets ↓">看 11 个预设 ↓</a>
+    </div>
+    <div class="hero-facts">
+      <div class="hfact"><div class="n">1965–2026</div><div class="l" data-en="ERA AXIS">年代轴</div></div>
+      <div class="hfact"><div class="n">11</div><div class="l" data-en="PRESETS">内置预设</div></div>
+      <div class="hfact"><div class="n">75</div><div class="l" data-en="PARAMETERS">可调参数</div></div>
+      <div class="hfact"><div class="n">0</div><div class="l" data-en="OUTBOUND REQUESTS">外发请求</div></div>
+      <div class="hfact"><div class="n">MIT</div><div class="l" data-en="LICENSE">许可证</div></div>
+    </div>
+  </div>
+</header>
+
+<section id="axis">
+  <div class="wrap">
+    <div class="sec-h">ERA AXIS</div>
+    <h2 data-en="Pick a year. The engine compiles its parameters.">拖动年份，引擎编译那个年代的参数。</h2>
+    <p class="sec-d" data-en='<code>rewind-core era 1988 --write my88.json</code> — the axis compiles any year into a full preset: frame rate, aspect, medium damage, codec artifacts. All continuous.'><code>rewind-core era 1988 --write my88.json</code> —— 年代轴把任意年份编译成一份完整预设：帧率、画幅、介质损伤、编码痕迹，随年份连续变化。</p>
+    <div class="axis" id="axisBar"><div class="dot" id="axisDot"></div></div>
+    <input type="range" class="era" id="eraRange" min="1965" max="2026" value="1988" aria-label="Year">
+    <div class="era-read">
+      <div class="big" id="eraYear">1988</div>
+      <div class="what" id="eraWhat"></div>
+    </div>
+  </div>
+</section>
+
+<section class="bordered" id="presets">
+  <div class="wrap">
+    <div class="sec-h">PRESETS</div>
+    <h2 data-en="11 presets. Every frame is real output.">11 个预设，每一帧都是真实输出。</h2>
+    <p class="sec-d" data-en="Left original / right degraded — same frame, same pipeline, 1:1 centre crop. Cropped, not scaled, because scaling averages away the scanlines and macroblocks on display. Hover to play the degraded clip.">左原图 / 右降解，同一帧、同一条管线、1:1 裁切——不缩放，因为缩放会平均掉要展示的扫描线和宏块。悬停播放降解后的片段。</p>
+    <div class="grid" id="grid"></div>
+  </div>
+</section>
+
+<section class="bordered" id="cli">
+  <div class="wrap">
+    <div class="sec-h">RUN IT</div>
+    <h2 data-en="Rust + ffmpeg. Local server, browser as UI.">Rust + ffmpeg，本地起服务，浏览器即界面。</h2>
+    <p class="sec-d" data-en="Build needs Rust stable (edition 2024) and ffmpeg ≥ 4.4. The web server listens on 127.0.0.1 only. The desktop app is a 214-line Tauri 2 shell.">构建需要 Rust stable (edition 2024) 与 ffmpeg ≥ 4.4。Web 服务只监听 127.0.0.1；桌面端是一个 214 行的 Tauri 2 壳。</p>
+    <div class="terminal">
+      <div class="t-bar"><i></i><i></i><i></i></div>
+      <div class="t-body">
+<span class="c"># build &amp; serve the local web UI</span><br>
+<span class="p">$</span> cd core &amp;&amp; cargo build --release<br>
+<span class="p">$</span> ./webui.sh <span class="c"># → http://127.0.0.1:8137/</span><br>
+<br>
+<span class="c"># one preset, one file</span><br>
+<span class="p">$</span> rewind-core run --preset presets/dvd2005.json --input in.mp4 --out-dir out/<br>
+<span class="o">→ out/in_dvd2005.mp4</span><br>
+<br>
+<span class="c"># compile any year into a preset</span><br>
+<span class="p">$</span> rewind-core era 1988 --write my88.json<br>
+<br>
+<span class="c"># two more dubbing generations</span><br>
+<span class="p">$</span> rewind-core reclip --input out/in_dvd2005.mp4 --times 2<br>
+<br>
+<span class="c"># batch</span><br>
+<span class="p">$</span> rewind-core batch --preset presets/patina.json --out-dir out/ a.mp4 b.mp4 c.mov<br>
+<br>
+<span class="c"># overrides never touch the preset file</span><br>
+<span class="p">$</span> rewind-core run --preset presets/cctv2000.json --input in.mp4 --out-dir out/ \<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="y">--override resize.dar=4:3 --override fps.fps=12.5</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="bordered" id="perf">
+  <div class="wrap">
+    <div class="sec-h">MEASURED</div>
+    <h2 data-en="An 8-second 720p clip, measured end to end.">8 秒 720p 素材，整段实测。</h2>
+    <p class="sec-d" data-en="WSL2 · 12 cores · ffmpeg 4.4.2. Speed depends on whether a preset stays on FastPath (ffmpeg only) or needs PixelPath (raw frames through Rust, incl. the vendored ntsc-rs signal simulator).">WSL2 · 12 核 · ffmpeg 4.4.2。速度取决于预设走 FastPath（纯 ffmpeg 链）还是 PixelPath（Rust 逐帧像素，含 vendored ntsc-rs 信号仿真）。</p>
+    <div style="overflow-x:auto">
+    <table>
+      <tr><th data-en="Preset">预设</th><th data-en="Path">路径</th><th data-en="Time">耗时</th><th data-en="vs realtime">vs 实时</th><th data-en="Output">输出</th></tr>
+      <tr><td>CCTV 2000</td><td><span class="fp">FastPath · 1 pass</span></td><td>1.8 s</td><td>4.4×</td><td>8.6 MB</td></tr>
+      <tr><td>Dubbed DVD 2005</td><td><span class="fp">FastPath · 2 pass</span></td><td>2.4 s</td><td>3.3×</td><td>2.9 MB</td></tr>
+      <tr><td><span class="i18n" data-en="VHS signal-level">VHS 信号级</span></td><td><span class="pp">PixelPath · ntsc-rs</span></td><td>4.1 s</td><td>2.0×</td><td>14 MB</td></tr>
+      <tr><td>CRT 1995</td><td><span class="pp">PixelPath</span></td><td>4.8 s</td><td>1.7×</td><td>1.6 MB</td></tr>
+      <tr><td><span class="i18n" data-en="Patina · 2 gens">Patina · 2 代</span></td><td><span class="pp">PixelPath</span></td><td>5.0 s</td><td>1.6×</td><td>7.2 MB</td></tr>
+      <tr><td>8mm film 1970</td><td><span class="pp">PixelPath</span></td><td>6.9 s</td><td>1.2×</td><td>2.9 MB</td></tr>
+    </table>
+    </div>
+    <p class="note" data-en="// every row reproducible with the commands in README">// 任意一行可用 README 中的命令复现</p>
+  </div>
+</section>
+
+<section class="bordered" id="facts">
+  <div class="wrap">
+    <div class="sec-h">NO VANITY</div>
+    <h2 data-en="Verifiable facts.">可以验证的事实。</h2>
+    <p class="sec-d"></p>
+    <div class="fgrid" id="fgrid"></div>
+  </div>
+</section>
+
+<section class="bordered">
+  <div class="wrap">
+    <div class="sec-h">PROVENANCE</div>
+    <div class="provbox">
+      <h3 data-en="Every output file states in its metadata: this is synthetic.">每个输出文件都在元数据里写明：这是合成的。</h3>
+      <p data-en="It cannot be disabled. You are responsible for the rights to the material you process and for how the result is used.">不可关闭。你对自己处理的素材权利和结果用途负责。</p>
+      <code>Rewind v0.1.0 · 本文件经 Rewind 做旧处理(合成年代效果,非原始素材) · rewind.local</code>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>◀◀ <b>REWIND</b> · MIT · <span class="i18n" data-en="FFmpeg invoked as subprocess · ntsc-rs MIT/ISC/Apache-2.0">FFmpeg 以子进程调用 · ntsc-rs MIT/ISC/Apache-2.0</span></div>
+    <div class="mono">core: Rust · shell: Rust · app: Tauri 2 · ui: shared web build</div>
+  </div>
+</footer>
+
+<script>
+// ---------- i18n ----------
+let LANG="zh";
+const i18nNodes=[];
+document.querySelectorAll("[data-en]").forEach(el=>{
+  i18nNodes.push({el,zh:el.innerHTML,en:el.dataset.en});
+});
+
+const PRESETS=[
+ {id:"patina",yr:"~2016",zh:"电子包浆",en:"Patina",d:"默认预设。一张图被反复转发压缩后的样子：高光裁切，细节结块。",de:"The default. What a picture looks like after years of reposts and recompression: clipped highlights, crusted detail."},
+ {id:"blurhigh",yr:"~2013",zh:"抽象高糊",en:"Blurred high",d:"重编码到细节消失。糊得坦荡。",de:"Re-encoded until detail is gone. Bluntly blurry."},
+ {id:"film1970",yr:"~1970",zh:"8mm 老胶片",en:"8mm film",d:"门架晃动、划痕、黑位抬升。",de:"Gate weave, scratches, lifted blacks."},
+ {id:"vhs1990_ntscrs",yr:"~1990",zh:"VHS · 信号级",en:"VHS · signal-level",d:"复合信号级仿真：色度串扰、磁头切换噪声、跟踪误差。",de:"Composite signal-level simulation: chroma crosstalk, head-switching noise, tracking error."},
+ {id:"vhs1990_static",yr:"~1990",zh:"VHS · 静态近似",en:"VHS · static",d:"静态近似实现，更快，质感还在。",de:"A static approximation. Faster; the texture holds."},
+ {id:"crt1995",yr:"~1995",zh:"大屁股 CRT",en:"CRT",d:"荧光粉、扫描线、曲面玻璃。",de:"Phosphor, scanlines, curved glass."},
+ {id:"cctv2000",yr:"~2000",zh:"监控录像",en:"CCTV",d:"4:3、低码率、烧录时间戳。最快的预设，一遍出片。",de:"4:3, low bitrate, burned-in timestamp. The fastest preset — one pass."},
+ {id:"dvd2005",yr:"~2005",zh:"网吧翻录 DVD",en:"Dubbed DVD",d:"mpeg4 宏块加隔行梳齿。",de:"mpeg4 macroblocking plus interlace comb."},
+ {id:"rmvb2006",yr:"~2006",zh:"字幕组 RMVB",en:"RMVB fansub",d:"稀薄码率，硬字幕上的色带。",de:"Thin bitrate, banding on hardsubs."},
+ {id:"phone2010",yr:"~2010",zh:"彩屏手机 3GP",en:"3GP phone",d:"小画幅，色度严重损失。",de:"Small frame, heavy chroma loss."},
+ {id:"screenbat",yr:"~2011",zh:"屏摄翻拍",en:"Screen re-photo",d:"摩尔纹、梯形畸变、背光色偏。",de:"Moiré, keystone, backlight colour cast."}
+];
+
+const FACTS=[
+ {k:"⌂",hz:"完全本地",he:"Fully local",pz:"不上传、无账号、无遥测、零外发请求。Web 服务只监听 <code>127.0.0.1</code>，文件只从白名单目录读写。",pe:"No upload, no account, no telemetry, zero outbound requests. The web server binds <code>127.0.0.1</code> only and serves from an allow-list."},
+ {k:"◉",hz:"信号级 VHS",he:"Signal-level VHS",pz:"内嵌 vendored <code>ntsc-rs</code> 复合信号仿真，12 个信号旋钮各自改变画面——不是贴一层噪点滤镜。",pe:"A vendored <code>ntsc-rs</code> composite-signal simulator. 12 signal knobs each change the picture — not a noise overlay."},
+ {k:"↯",hz:"翻录代际梯",he:"Dubbing ladder",pz:"Generations 1–8：每代一次缩放 + 编码往返 + 色度抽稀 + 掉帧 + 雾化，第 6 代起进过载档。1→8 代 SSIM 降幅 &gt; 0.30，有测试守门。",pe:"Generations 1–8: one downscale, one codec round trip, chroma decimation, dropouts and haze per generation; an over-cranked tier from 6. SSIM drop from gen 1 to 8 &gt; 0.30, enforced by tests."},
+ {k:"☰",hz:"参数即 UI",he:"Parameters are the UI",pz:"<code>rewind-core describe</code> 输出参数清单，桌面和 Web 界面都由它渲染——引擎加一个参数，两个 UI 自动多出控件。12 组，75 个参数。",pe:"<code>rewind-core describe</code> emits the manifest both UIs render from — add a parameter to the engine and both interfaces grow a control. 12 groups, 75 parameters."},
+ {k:"✓",hz:"门测试套件",he:"Gate suite",pz:"95 项回归 + 60 组像素活性 + 15 组音频活性 + 156 组 plan diff + 几何契约 + 预设方差，全部接进三平台 CI。",pe:"95 regression checks + 60 pixel-liveness pairs + 15 audio pairs + 156 plan diffs + geometry contracts + preset variance — all wired into CI on Linux, Windows, macOS."},
+ {k:"◫",hz:"图像也行",he:"Images too",pz:"输入 <code>png</code>/<code>jpg</code> 时跳过时间域阶段，同一条管线处理静态图像。",pe:"Feed it <code>png</code>/<code>jpg</code> and temporal stages are skipped; the same pipeline handles stills."},
+ {k:"⚠",hz:"错误码自描述",he:"Self-describing errors",pz:"失败形如 <code>[code] reason</code>，共 20 个错误码。中文界面显示原因，英文界面按码翻译；issue 里报码即可。",pe:"Failures read <code>[code] reason</code> — 20 codes total. The Chinese UI shows the reason, the English UI translates by code. Report the code in issues."},
+ {k:"↺",hz:"基准可复现",he:"Reproducible benchmarks",pz:"性能表每一行都附复现命令。首次运行前的耗时估计偏悲观 1.6–7×；跑过一次后改用实测值。",pe:"Every benchmark row ships with its reproduction command. Pre-run estimates are 1.6–7× pessimistic; after one measured run the real value is used."}
+];
+
+const ERAS=[
+ [1965,"超8胶片普及。颗粒、抖动、抬升的黑位。","Super 8 arrives. Grain, weave, lifted blacks."],
+ [1970,"8mm 胶片全盛期。对应预设 <b>film1970</b>。","8mm film at its peak. See preset <b>film1970</b>."],
+ [1976,"VHS 问世，磁带开始统治客厅。","VHS is born. Tape starts its twenty-year rule of the living room."],
+ [1983,"家用摄像机进家庭，时间戳烧进角落。","Camcorders enter the home; timestamps burn into the corner."],
+ [1988,"VHS 巅峰。对应预设 <b>vhs1990_ntscrs / vhs1990_static</b>。","Peak VHS. See presets <b>vhs1990_ntscrs / vhs1990_static</b>."],
+ [1995,"CRT 的黄昏。对应预设 <b>crt1995</b>。","The CRT twilight. See preset <b>crt1995</b>."],
+ [2000,"监控摄像头铺满城市。对应预设 <b>cctv2000</b>。","CCTV cameras carpet the city. See preset <b>cctv2000</b>."],
+ [2005,"DVD 翻录与网吧。对应预设 <b>dvd2005</b>。","Dubbed DVDs and internet cafés. See preset <b>dvd2005</b>."],
+ [2006,"字幕组与 RMVB。对应预设 <b>rmvb2006</b>。","Fansub groups and RMVB. See preset <b>rmvb2006</b>."],
+ [2010,"3GP 手机视频。对应预设 <b>phone2010</b>。","3GP phone video. See preset <b>phone2010</b>."],
+ [2011,"屏摄翻拍流行。对应预设 <b>screenbat</b>。","Screen re-photography spreads. See preset <b>screenbat</b>."],
+ [2013,"高糊表情包纪元。对应预设 <b>blurhigh</b>。","The era of blurry memes. See preset <b>blurhigh</b>."],
+ [2016,"电子包浆。对应预设 <b>patina</b>。","Digital patina. See preset <b>patina</b>."],
+ [2020,"4K HDR 流媒体。损伤成了选择，不是命运。","4K HDR streaming. Damage is a choice now, not a fate."],
+ [2026,"现在。把任何东西退回任何一年。","Now. Send anything back to any year."]
+];
+
+// ---------- render ----------
+const grid=document.getElementById("grid");
+function renderGrid(){
+  grid.innerHTML="";
+  PRESETS.forEach(p=>{
+    const c=document.createElement("div");c.className="card";
+    c.innerHTML=`<div class="media">
+      <img src="assets/${p.id}.png" alt="${p.en}" loading="lazy">
+      <video muted loop playsinline preload="none" data-src="assets/${p.id}.webm"></video>
+      <span class="live">▶ DEGRADED</span></div>
+    <div class="body">
+      <div class="yr2">${p.yr}</div>
+      <h3>${LANG==="zh"?p.zh:p.en}<span class="en">${LANG==="zh"?p.en:p.zh}</span></h3>
+      <p>${LANG==="zh"?p.d:p.de}</p>
+      <div class="cmd"><b>$</b> rewind-core run --preset presets/${p.id}.json --input in.mp4 --out-dir out/</div>
+    </div>`;
+    const v=c.querySelector("video");
+    c.addEventListener("mouseenter",()=>{if(!v.src)v.src=v.dataset.src;v.play().catch(()=>{})});
+    c.addEventListener("mouseleave",()=>v.pause());
+    grid.appendChild(c);
+  });
+}
+const fgrid=document.getElementById("fgrid");
+function renderFacts(){
+  fgrid.innerHTML="";
+  FACTS.forEach(f=>{
+    const d=document.createElement("div");d.className="fact";
+    d.innerHTML=`<div class="k">${f.k}</div><h4>${LANG==="zh"?f.hz:f.he}</h4><p>${LANG==="zh"?f.pz:f.pe}</p>`;
+    fgrid.appendChild(d);
+  });
+}
+renderGrid();renderFacts();
+
+// ---------- era axis ----------
+const axisBar=document.getElementById("axisBar"),dot=document.getElementById("axisDot"),
+      range=document.getElementById("eraRange"),yrEl=document.getElementById("eraYear"),
+      whatEl=document.getElementById("eraWhat");
+[1965,1975,1985,1995,2005,2015,2026].forEach(y=>{
+  const s=document.createElement("span");s.className="yr";s.dataset.y=y;
+  s.style.left=((y-1965)/(2026-1965)*100)+"%";
+  s.innerHTML=y+"<i></i>";axisBar.appendChild(s);
+});
+function upd(v){
+  yrEl.textContent=v;
+  dot.style.left=((v-1965)/(2026-1965)*100)+"%";
+  let best=ERAS[0];
+  for(const e of ERAS) if(e[0]<=v) best=e;
+  whatEl.innerHTML=LANG==="zh"?best[1]:best[2];
+  document.querySelectorAll(".axis .yr").forEach(s=>{
+    s.classList.toggle("on",Math.abs(s.dataset.y-v)<=4);
+  });
+}
+range.addEventListener("input",e=>upd(+e.target.value));
+upd(1988);
+
+// ---------- language toggle ----------
+const langBtn=document.getElementById("langBtn");
+function setLang(l){
+  LANG=l;
+  document.documentElement.lang=l==="zh"?"zh-CN":"en";
+  document.title=l==="zh"?"Rewind — 本地视频做旧引擎":"Rewind — local video aging engine";
+  i18nNodes.forEach(n=>{n.el.innerHTML=l==="zh"?n.zh:n.en});
+  langBtn.textContent=l==="zh"?"EN":"中";
+  renderGrid();renderFacts();upd(+range.value);
+}
+langBtn.addEventListener("click",()=>setLang(LANG==="zh"?"en":"zh"));
+</script>
+</body>
+</html>
